@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Respuesta a tu pregunta</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: 'Arial', sans-serif; background: #f5f5f5; padding:20px; }
+    .container { max-width:600px; margin:0 auto; background:#ffffff; border-radius:10px; overflow:hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    .header { background-color:#4caf50; color:#fff; text-align:center; padding:15px; }
+    .header img { max-width:120px; margin-bottom:10px; }
+    .content { padding:20px; color:#333; }
+    .content h2 { color:#4caf50; margin-bottom:10px; font-size:20px; }
+    .content p { margin-bottom:15px; line-height:1.5; }
+    .question { background:#eceff1; padding:15px; border-radius:5px; margin-bottom:15px; }
+    .response { background:#e8f5e9; padding:15px; border-radius:5px; margin-bottom:20px; }
+    .footer { background:#f1f8e9; text-align:center; padding:15px; font-size:12px; color:#666; }
+    @media (max-width:480px) {
+      .content h2 { font-size:18px; }
+      .container { padding:10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="https://res.cloudinary.com/dat3wjeko/image/upload/v1745790901/logo11_gzrvte.png" alt="Logo SUTUTEH" />
+      <h1>Respuesta a tu pregunta</h1>
+    </div>
+    <div class="content">
+      <p>Hola {{nombre}},</p>
+      <p>Gracias por contactarnos. A continuación encontrarás la respuesta a la siguiente pregunta que nos enviaste:</p>
+      <div class="question">
+        <strong>Pregunta:</strong>
+        <p>{{pregunta}}</p>
+      </div>
+      <div class="response">
+        <strong>Respuesta:</strong>
+        <p>{{respuesta}}</p>
+      </div>
+      <p>Esperamos haber resuelto tu duda. Si necesitas más ayuda, no dudes en contactarnos de nuevo.</p>
+      <p>Saludos cordiales,</p>
+      <p><strong>Equipo de SUTUTEH</strong></p>
+    </div>
+    <div class="footer">
+      © 2025 SUTUTEH. Todos los derechos reservados.
+    </div>
+  </div>
+</body>
+</html>

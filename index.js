@@ -1,0 +1,62 @@
+// index.js
+require("dotenv").config();
+const express        = require("express");
+const cors           = require("cors");
+const cookieParser   = require("cookie-parser");
+const pool           = require("./bd");
+const refreshSession = require("./config/refreshSession");
+
+const app = express();
+const port = process.env.PORT || 3001;
+
+// 1) CORS
+app.use(cors({
+  origin:      'http://localhost:3000',
+  credentials: true
+}));
+
+app.use(express.json());
+app.use(cookieParser());
+
+// RUTAS PÚBLICAS (antes de refreshSession)
+const registroRoutes            = require('./consultas/registro');
+const loginRoutes               = require('./consultas/login');
+const recuperarContrasenaRoutes = require("./consultas/recuperarContrasena");
+const filosofiaRoutes = require('./consultas/filosofia');
+const documentosRegulatoriosRoutes = require('./consultas/documentos_regulatorios');
+const datosEmpresaRoutes = require('./consultas/datos_empresa');
+const noticiasRouter = require("./consultas/noticias");
+const preguntasRouter = require('./consultas/preguntas');
+const reunionesRouter  = require('./consultas/reunionesyasistencia');
+
+
+
+app.use('/api/registro',            registroRoutes);
+app.use('/api/login',               loginRoutes);
+app.use('/api/recuperarContrasena', recuperarContrasenaRoutes);
+app.use('/api/nosotros', filosofiaRoutes);
+app.use('/api/documentos-regulatorios', documentosRegulatoriosRoutes);
+app.use('/api/datos-empresa', datosEmpresaRoutes);
+app.use("/api/noticias", noticiasRouter);
+app.use('/api/preguntas', preguntasRouter);
+app.use('/api/reuniones',           reunionesRouter);
+
+
+// REFRESH DE SESIÓN (renueva JWT si existe)
+app.use(refreshSession);
+
+// RUTAS PROTEGIDAS (después de refreshSession)
+const perfilRouter = require('./consultas/perfil');
+const imgRoutes             = require("./consultas/img");
+
+app.use('/api/perfilAgremiado', perfilRouter);
+app.use('/api/img',             imgRoutes);
+
+// Ruta principal
+app.get("/", (req, res) => {
+  res.send("Servidor y API funcionando correctamente");
+});
+
+app.listen(port, () => {
+  console.log(`Servidor corriendo en http://localhost:${port}`);
+});
