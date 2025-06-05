@@ -28,6 +28,9 @@ const datosEmpresaRoutes = require('./consultas/datos_empresa');
 const noticiasRouter = require("./consultas/noticias");
 const preguntasRouter = require('./consultas/preguntas');
 const reunionesRouter  = require('./consultas/reunionesyasistencia');
+const puestosRouter = require('./consultas/gestion_puestos');
+const encuestasVotacionesRouter = require('./consultas/encuestasVotaciones');
+
 
 
 
@@ -40,6 +43,8 @@ app.use('/api/datos-empresa', datosEmpresaRoutes);
 app.use("/api/noticias", noticiasRouter);
 app.use('/api/preguntas', preguntasRouter);
 app.use('/api/reuniones',           reunionesRouter);
+app.use('/api/puestos', puestosRouter);
+app.use('/api/encuestas-votaciones', encuestasVotacionesRouter);
 
 
 // REFRESH DE SESIÓN (renueva JWT si existe)
