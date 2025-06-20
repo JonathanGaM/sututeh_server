@@ -49,5 +49,26 @@ const storageNosotros = new CloudinaryStorage({
   },
 });
 
+// Para imágenes de portada
+const storagePortadas = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "documentos_agremiados/portadas",
+    resource_type: "image",
+    allowed_formats: ["jpg","jpeg","png","gif"]
+  }
+});
 
-module.exports = { cloudinary, storage,storageEmpresa,storageNoticias,storageNosotros };
+// Para documentos (PDF, Word, Excel, PPT...)
+const storageArchivos = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "documentos_agremiados/archivos",
+    resource_type: "raw"
+  }
+});
+
+
+
+module.exports = { cloudinary, storage,storageEmpresa,storageNoticias,storageNosotros,storagePortadas,
+  storageArchivos };

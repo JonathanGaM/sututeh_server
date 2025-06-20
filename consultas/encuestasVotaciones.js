@@ -400,5 +400,386 @@ router.post('/respuestas', refreshSession, async (req, res) => {
   }
 });
 
+// GET /api/encuestas-votaciones/usuario/estado
+// Devuelve todas las encuestas iniciadas (activa o terminada) con estado “Contestada” / “No contestada”
+router.get(
+  '/usuario/estado',
+  refreshSession,
+  async (req, res) => {
+    const usuarioId = req.user.sub;
+    try {
+      const [rows] = await pool.query(
+        `
+        SELECT DISTINCT
+          e.id                   AS id,
+          e.type                 AS type,
+          e.title                AS title,
+          e.description          AS description,
+          e.close_date           AS closeDate,
+          CASE
+            WHEN r.id IS NULL THEN 'No contestada'
+            ELSE 'Contestada'
+          END                    AS estado
+        FROM encuestas_votaciones e
+        LEFT JOIN respuestas_encuesta r
+          ON r.encuesta_id = e.id
+         AND r.user_id      = ?
+        WHERE
+          -- Que ya estén publicadas (activas o terminadas)
+          CONCAT(e.publication_date, ' ', e.publication_time) <= NOW()
+        ORDER BY e.close_date DESC, e.close_time DESC
+        `,
+        [usuarioId]
+      );
+      res.json(rows);
+    } catch (err) {
+      console.error('Error al listar estado de encuestas para el usuario:', err);
+      res.status(500).json({ error: 'Error interno al obtener encuestas con estado.' });
+    }
+  }
+);
+
+// GET /api/encuestas-votaciones/:id/participantes
+//  Devuelve datos de la encuesta y lista de usuarios que sí respondieron
+router.get('/:id/participantes', async (req, res) => {
+  const encuestaId = Number(req.params.id);
+  if (!Number.isInteger(encuestaId)) {
+    return res.status(400).json({ error: 'ID de encuesta inválido.' });
+  }
+
+  try {
+    // 1) Datos de la encuesta
+    const [enc] = await pool.query(
+      `SELECT 
+         id, type, title, description,
+         publication_date     AS publicationDate,
+         publication_time     AS publicationTime,
+         close_date           AS closeDate,
+         close_time           AS closeTime
+       FROM encuestas_votaciones
+       WHERE id = ?`,
+      [encuestaId]
+    );
+    if (!enc.length) {
+      return res.status(404).json({ error: 'Encuesta/Votación no encontrada.' });
+    }
+
+    // 2) Participantes
+    const [part] = await pool.query(
+      `SELECT
+         u.id                     AS userId,
+         u.nombre,
+         u.apellido_paterno       AS apellidoPaterno,
+         u.apellido_materno       AS apellidoMaterno,
+         au.correo_electronico    AS email,
+         r.pregunta_id            AS preguntaId,
+         r.opcion_id              AS opcionId,
+         r.responded_at           AS respondedAt
+       FROM respuestas_encuesta r
+       JOIN perfil_usuarios u    ON u.id       = r.user_id
+       JOIN autenticacion_usuarios au ON au.id  = u.id
+       WHERE r.encuesta_id = ?
+         AND au.estatus = 'Activo'
+       ORDER BY u.apellido_paterno, u.nombre, r.responded_at`,
+      [encuestaId]
+    );
+
+    return res.json({
+      encuesta: enc[0],
+      participantes: part
+    });
+  } catch (err) {
+    console.error('Error GET /participantes:', err);
+    return res.status(500).json({ error: 'Error interno al obtener participantes.' });
+  }
+});
+
+// GET /api/encuestas-votaciones/:id/no-participantes
+//  Devuelve datos de la encuesta y lista de usuarios que NO respondieron
+router.get('/:id/no-participantes', async (req, res) => {
+  const encuestaId = Number(req.params.id);
+  if (!Number.isInteger(encuestaId)) {
+    return res.status(400).json({ error: 'ID de encuesta inválido.' });
+  }
+
+  try {
+    // 1) Datos de la encuesta
+    const [enc] = await pool.query(
+      `SELECT 
+         id, type, title, description,
+         publication_date     AS publicationDate,
+         publication_time     AS publicationTime,
+         close_date           AS closeDate,
+         close_time           AS closeTime
+       FROM encuestas_votaciones
+       WHERE id = ?`,
+      [encuestaId]
+    );
+    if (!enc.length) {
+      return res.status(404).json({ error: 'Encuesta/Votación no encontrada.' });
+    }
+
+    // 2) No-participantes
+    const [noPart] = await pool.query(
+      `SELECT
+         u.id                  AS userId,
+         u.nombre,
+         u.apellido_paterno    AS apellidoPaterno,
+         u.apellido_materno    AS apellidoMaterno,
+         au.correo_electronico AS email
+       FROM perfil_usuarios u
+       JOIN autenticacion_usuarios au ON au.id = u.id
+       WHERE au.estatus = 'Activo'
+         AND u.id NOT IN (
+           SELECT user_id
+           FROM respuestas_encuesta
+           WHERE encuesta_id = ?
+         )
+       ORDER BY u.apellido_paterno, u.nombre`,
+      [encuestaId]
+    );
+
+    return res.json({
+      encuesta: enc[0],
+      noParticipantes: noPart
+    });
+  } catch (err) {
+    console.error('Error GET /no-participantes:', err);
+    return res.status(500).json({ error: 'Error interno al obtener no-participantes.' });
+  }
+});
+/**
+ * GET /api/encuestas-votaciones/:id/estadisticas
+ *  – total de usuarios que respondieron la encuesta
+ *  – para cada pregunta, cuántos votos recibió cada opción
+ *  – además devuelve type, publication_date y publication_time
+ */
+router.get('/:id/estadisticas', async (req, res) => {
+  const encuestaId = Number(req.params.id);
+  if (!Number.isInteger(encuestaId)) {
+    return res.status(400).json({ error: 'ID de encuesta inválido.' });
+  }
+
+  try {
+    // 1) Validamos que exista y traemos los campos necesarios
+    const [[enc]] = await pool.query(
+      `
+      SELECT
+        id,
+        type,
+        title,
+        publication_date     AS publicationDate,
+        publication_time     AS publicationTime
+      FROM encuestas_votaciones
+      WHERE id = ?
+      `,
+      [encuestaId]
+    );
+    if (!enc) return res.status(404).json({ error: 'Encuesta no encontrada.' });
+
+    // 2) Total de participantes distintos
+    const [[{ totalRespondieron }]] = await pool.query(
+      `
+      SELECT COUNT(DISTINCT user_id) AS totalRespondieron
+      FROM respuestas_encuesta
+      WHERE encuesta_id = ?
+      `,
+      [encuestaId]
+    );
+
+    // 3) Estadísticas por pregunta y opción
+    const [rows] = await pool.query(
+      `
+      SELECT
+        p.id               AS preguntaId,
+        p.text             AS preguntaText,
+        o.id               AS opcionId,
+        o.text             AS opcionText,
+        COUNT(r.id)        AS votos
+      FROM preguntas_encuesta p
+      JOIN opciones_encuesta o
+        ON o.pregunta_id = p.id
+      LEFT JOIN respuestas_encuesta r
+        ON r.pregunta_id = p.id
+       AND r.opcion_id  = o.id
+       AND r.encuesta_id = ?
+      WHERE p.encuesta_id = ?
+      GROUP BY p.id, o.id
+      ORDER BY p.id, o.id
+      `,
+      [encuestaId, encuestaId]
+    );
+
+    // 4) Re-armado en estructura anidada
+    const statsMap = {};
+    rows.forEach(r => {
+      if (!statsMap[r.preguntaId]) {
+        statsMap[r.preguntaId] = {
+          preguntaId:   r.preguntaId,
+          preguntaText: r.preguntaText,
+          opciones:     []
+        };
+      }
+      statsMap[r.preguntaId].opciones.push({
+        opcionId:   r.opcionId,
+        opcionText: r.opcionText,
+        votos:      r.votos
+      });
+    });
+
+    // 5) Devolvemos todo junto
+    return res.json({
+      encuesta: {
+        id:               enc.id,
+        title:            enc.title,
+        type:             enc.type,           // <-- aquí
+        publicationDate:  enc.publicationDate, // <-- y aquí
+        publicationTime:  enc.publicationTime  // <-- y aquí
+      },
+      totalRespondieron,
+      preguntas: Object.values(statsMap)
+    });
+  } catch (err) {
+    console.error('Error GET /estadisticas:', err);
+    res.status(500).json({ error: 'Error interno obteniendo estadísticas.' });
+  }
+});
+// EDITAR encuesta/votación (sin auth para admin)
+router.put('/:id', async (req, res) => {
+  let conn;
+  try {
+    const encuestaId = Number(req.params.id);
+    if (!encuestaId) 
+      return res.status(400).json({ error: 'ID inválido.' });
+
+    const {
+      type,
+      title,
+      description = null,
+      publication_date,
+      publication_time,
+      close_date,
+      close_time,
+      questions
+    } = req.body;
+
+    if (
+      !type || !title ||
+      !publication_date || !publication_time ||
+      !close_date   || !close_time ||
+      !Array.isArray(questions)
+    ) {
+      return res.status(400).json({ error: 'Faltan campos obligatorios.' });
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    // 1) Actualizar datos principales
+    await conn.query(
+      `UPDATE encuestas_votaciones
+         SET type=?, title=?, description=?, publication_date=?, publication_time=?,
+             close_date=?, close_time=?, updated_at=NOW()
+       WHERE id=?`,
+      [type, title, description, publication_date, publication_time, close_date, close_time, encuestaId]
+    );
+
+    // 2) Borrar preguntas y opciones antiguas
+    await conn.query(
+      `DELETE o FROM opciones_encuesta o
+         JOIN preguntas_encuesta p ON p.id=o.pregunta_id
+       WHERE p.encuesta_id=?`,
+      [encuestaId]
+    );
+    await conn.query(
+      `DELETE FROM preguntas_encuesta WHERE encuesta_id=?`,
+      [encuestaId]
+    );
+
+    // 3) Insertar preguntas y opciones nuevas
+    for (let { text, options } of questions) {
+      const [r] = await conn.query(
+        `INSERT INTO preguntas_encuesta (encuesta_id, text) VALUES (?, ?)`,
+        [encuestaId, text.trim()]
+      );
+      const preguntaId = r.insertId;
+
+      if (Array.isArray(options) && options.length) {
+        const ph = options.map(() => '(?, ?)').join(', ');
+        const vals = [];
+        options.forEach(opt => vals.push(preguntaId, opt.trim()));
+        await conn.query(
+          `INSERT INTO opciones_encuesta (pregunta_id, text) VALUES ${ph}`,
+          vals
+        );
+      }
+    }
+
+    await conn.commit();
+    conn.release();
+
+    res.json({ message: 'Encuesta actualizada correctamente', id: encuestaId });
+  } catch (err) {
+    if (conn) {
+      await conn.rollback();
+      conn.release();
+    }
+    console.error(err);
+    res.status(500).json({ error: 'Error interno al editar encuesta.' });
+  }
+});
+// DELETE /api/encuestas-votaciones/:id
+// Elimina encuesta/votación y todo su contenido relacionado
+router.delete('/:id', async (req, res) => {
+  const encuestaId = Number(req.params.id);
+  if (!Number.isInteger(encuestaId)) {
+    return res.status(400).json({ error: 'ID de encuesta inválido.' });
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    // 1) Borrar respuestas de usuarios
+    await conn.query(
+      `DELETE FROM respuestas_encuesta WHERE encuesta_id = ?`,
+      [encuestaId]
+    );
+    // 2) Borrar opciones de cada pregunta
+    await conn.query(
+      `DELETE o FROM opciones_encuesta o
+         JOIN preguntas_encuesta p ON p.id = o.pregunta_id
+       WHERE p.encuesta_id = ?`,
+      [encuestaId]
+    );
+    // 3) Borrar preguntas
+    await conn.query(
+      `DELETE FROM preguntas_encuesta WHERE encuesta_id = ?`,
+      [encuestaId]
+    );
+    // 4) Borrar la encuesta/votación
+    const [result] = await conn.query(
+      `DELETE FROM encuestas_votaciones WHERE id = ?`,
+      [encuestaId]
+    );
+
+    await conn.commit();
+    conn.release();
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Encuesta no encontrada.' });
+    }
+    res.json({ message: 'Encuesta/votación eliminada correctamente.' });
+  } catch (err) {
+    if (conn) {
+      await conn.rollback();
+      conn.release();
+    }
+    console.error('Error al eliminar encuesta:', err);
+    res.status(500).json({ error: 'Error interno al eliminar encuesta.' });
+  }
+});
+
 
 module.exports = router;

@@ -6,14 +6,18 @@ const cookieParser   = require("cookie-parser");
 const pool           = require("./bd");
 const refreshSession = require("./config/refreshSession");
 
+
 const app = express();
 const port = process.env.PORT || 3001;
+const path = require('path');
+
 
 // 1) CORS
 app.use(cors({
   origin:      'http://localhost:3000',
   credentials: true
 }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use(express.json());
 app.use(cookieParser());
@@ -30,6 +34,9 @@ const preguntasRouter = require('./consultas/preguntas');
 const reunionesRouter  = require('./consultas/reunionesyasistencia');
 const puestosRouter = require('./consultas/gestion_puestos');
 const encuestasVotacionesRouter = require('./consultas/encuestasVotaciones');
+const documentosRouter = require('./consultas/documentos');
+const transparenciaRouter = require('./consultas/transparencia');
+
 
 
 
@@ -45,6 +52,8 @@ app.use('/api/preguntas', preguntasRouter);
 app.use('/api/reuniones',           reunionesRouter);
 app.use('/api/puestos', puestosRouter);
 app.use('/api/encuestas-votaciones', encuestasVotacionesRouter);
+app.use('/api/documentos', documentosRouter);
+app.use('/api/transparencia', transparenciaRouter);
 
 
 // REFRESH DE SESIÓN (renueva JWT si existe)
