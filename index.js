@@ -36,7 +36,7 @@ const puestosRouter = require('./consultas/gestion_puestos');
 const encuestasVotacionesRouter = require('./consultas/encuestasVotaciones');
 const documentosRouter = require('./consultas/documentos');
 const transparenciaRouter = require('./consultas/transparencia');
-
+const rifasRouter = require('./consultas/rifas');
 
 
 
@@ -54,6 +54,7 @@ app.use('/api/puestos', puestosRouter);
 app.use('/api/encuestas-votaciones', encuestasVotacionesRouter);
 app.use('/api/documentos', documentosRouter);
 app.use('/api/transparencia', transparenciaRouter);
+app.use('/api/rifas', rifasRouter);
 
 
 // REFRESH DE SESIÓN (renueva JWT si existe)

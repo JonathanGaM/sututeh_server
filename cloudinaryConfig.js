@@ -67,8 +67,28 @@ const storageArchivos = new CloudinaryStorage({
     resource_type: "raw"
   }
 });
+// Para imágenes de rifas
+const storageRifas = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "rifas/imagenes",
+    resource_type: "image",
+    allowed_formats: ["jpg","jpeg","png","gif"]
+  }
+});
+
+// Para imágenes de productos de rifas
+const storageProductosRifa = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "rifas/productos", 
+    resource_type: "image",
+    allowed_formats: ["jpg","jpeg","png","gif"]
+  }
+});
+
 
 
 
 module.exports = { cloudinary, storage,storageEmpresa,storageNoticias,storageNosotros,storagePortadas,
-  storageArchivos };
+  storageArchivos,storageRifas,storageProductosRifa };
