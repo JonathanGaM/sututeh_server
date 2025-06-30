@@ -14,13 +14,22 @@ const path = require('path');
 
 // 1) CORS
 app.use(cors({
-  origin:      'http://localhost:3000',
+  origin:    
+  [
+    'http://localhost:3000',
+    'https://sututeh.com',
+    'https://www.sututeh.com'
+  ],
   credentials: true
 }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use(express.json());
 app.use(cookieParser());
+// Ruta principal
+app.get("/", (req, res) => {
+  res.send("Servidor y API funcionando correctamente");
+});
 
 // RUTAS PÚBLICAS (antes de refreshSession)
 const registroRoutes            = require('./consultas/registro');
@@ -67,10 +76,7 @@ const imgRoutes             = require("./consultas/img");
 app.use('/api/perfilAgremiado', perfilRouter);
 app.use('/api/img',             imgRoutes);
 
-// Ruta principal
-app.get("/", (req, res) => {
-  res.send("Servidor y API funcionando correctamente");
-});
+
 
 app.listen(port, () => {
   console.log(`Servidor corriendo en http://localhost:${port}`);

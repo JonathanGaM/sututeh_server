@@ -231,4 +231,26 @@ router.get('/libres', async (req, res) => {
   }
 });
 
+
+/**
+ * GET /api/puestos/estadisticas/agremiados
+ * Devuelve el total de agremiados activos
+ */
+router.get('/estadisticas/agremiados', async (req, res) => {
+  try {
+    const [[{ total_agremiados }]] = await pool.query(`
+      SELECT COUNT(*) as total_agremiados 
+      FROM autenticacion_usuarios 
+      WHERE estatus = 'Activo'
+    `);
+
+    return res.json({ 
+      total_agremiados: total_agremiados || 0,
+      message: 'Total de agremiados activos obtenido correctamente'
+    });
+  } catch (err) {
+    console.error('Error al obtener total de agremiados:', err);
+    return res.status(500).json({ error: 'Error en la base de datos.' });
+  }
+});
 module.exports = router;

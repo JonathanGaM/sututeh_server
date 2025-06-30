@@ -26,6 +26,16 @@ const templatePath = path.join(__dirname, "../emailTemplates/emailrespuesta.htm"
 const htmlTemplate = fs.readFileSync(templatePath, "utf8");
 
 
+// Agregar esta función helper al inicio del archivo, después de las importaciones
+const requireAuth = (req, res, next) => {
+  if (!req.user || !req.user.sub) {
+    return res.status(401).json({ 
+      error: 'Usuario no autenticado. Por favor, inicia sesión nuevamente.' 
+    });
+  }
+  next();
+};
+
   
 // ELIMINA TODAS las definiciones duplicadas de router.post('/:id/responder')
 // y usa SOLO esta versión corregida:
@@ -176,6 +186,7 @@ router.post(
 router.post(
   '/registrado',
   refreshSession,
+   requireAuth,
   [ body('mensaje').notEmpty().withMessage('El mensaje es requerido') ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -237,7 +248,8 @@ router.post(
  */
 router.post(
   '/:id/responder-registrado',
-  refreshSession,                            // refresca y valida la cookie JWT
+  refreshSession,
+   requireAuth,                            // refresca y valida la cookie JWT
   [ body('respuesta').notEmpty() ],          // valida que haya texto
   async (req, res) => {
     const errors = validationResult(req);
@@ -414,6 +426,7 @@ router.delete('/:id', async (req, res) => {
 router.get(
   '/usuario',
   refreshSession,
+   requireAuth,
   async (req, res) => {
     const usuarioId = req.user.sub;
     try {

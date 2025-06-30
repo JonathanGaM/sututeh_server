@@ -4,6 +4,17 @@ const router  = express.Router();
 const pool    = require('../bd');  // tu pool.promise()
 const refreshSession = require('../config/refreshSession');
 
+// Función helper para validar autenticación
+const requireAuth = (req, res, next) => {
+  if (!req.user || !req.user.sub) {
+    return res.status(401).json({ 
+      error: 'Usuario no autenticado. Por favor, inicia sesión nuevamente.' 
+    });
+  }
+  next();
+};
+
+
 
 // POST /api/reuniones
 router.post('/', async (req, res) => {
@@ -161,6 +172,7 @@ router.put('/:id', async (req, res) => {
 router.post(
   '/:id/asistencia',
     refreshSession,                 // <— asegura que req.user.sub esté presente
+    requireAuth,
   async (req, res) => {
     const reunionId = req.params.id;
     const usuarioId = req.user.sub;
@@ -285,6 +297,7 @@ router.get(
 router.get(
   '/usuario/asistencia',
   refreshSession, // asegura que req.user.sub exista
+  requireAuth,
   async (req, res) => {
     const usuarioId = req.user.sub;
 

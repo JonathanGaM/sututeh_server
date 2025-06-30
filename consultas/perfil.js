@@ -4,9 +4,18 @@ const pool    = require('../bd');
 const multer  = require('multer');
 const { storage } = require('../cloudinaryConfig'); // tu configuración de Cloudinary
 const upload  = multer({ storage });
+const refreshSession = require('../config/refreshSession');
 
 const router = express.Router();
-
+// Función helper para validar autenticación
+const requireAuth = (req, res, next) => {
+  if (!req.user || !req.user.sub) {
+    return res.status(401).json({ 
+      error: 'Usuario no autenticado. Por favor, inicia sesión nuevamente.' 
+    });
+  }
+  next();
+};
 /**
  * GET /api/perfilAgremiado
  * Devuelve los datos del usuario autenticado (extraídos de la cookie JWT).
@@ -15,7 +24,7 @@ const router = express.Router();
  * GET /api/perfilAgremiado
  * Devuelve los datos del usuario autenticado, incluyendo su estatus.
  */
-router.get('/', async (req, res) => {
+router.get('/',refreshSession, requireAuth, async (req, res) => {
     try {
       const userId = req.user.sub;
   
@@ -67,6 +76,8 @@ router.get('/', async (req, res) => {
  */
 router.post(
   '/foto',
+   refreshSession,
+  requireAuth,
   upload.single('imagen'),
   async (req, res) => {
     try {

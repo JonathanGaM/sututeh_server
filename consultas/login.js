@@ -76,7 +76,7 @@ router.post(
       const payload = { sub: user.id, role: perfil.roleName };
       
       const token = jwt.sign(payload, process.env.JWT_SECRET, {
-        expiresIn: "30m",
+        expiresIn: "5m",
       });
       
 
@@ -86,7 +86,7 @@ router.post(
         httpOnly: true,
         secure: false,
         sameSite: "lax",
-        maxAge: 30 * 60 * 1000, // 30 minutos
+        maxAge: 5 * 60 * 1000, // 30 minutos
       })
       .json({ message: "Login exitoso", roleId: perfil.roleId });
         

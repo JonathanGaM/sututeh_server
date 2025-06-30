@@ -191,6 +191,9 @@ router.post('/', uploadRifa.single('foto_rifa'), async (req, res) => {
 // ========================================
 // ACTUALIZAR RIFA
 // ========================================
+// ========================================
+// ACTUALIZAR RIFA - FUNCIÓN CORREGIDA
+// ========================================
 router.put('/:id', uploadRifa.single('foto_rifa'), async (req, res) => {
   const connection = await pool.getConnection();
   
@@ -210,6 +213,12 @@ router.put('/:id', uploadRifa.single('foto_rifa'), async (req, res) => {
       fecha_cierre,
       productos
     } = req.body;
+
+    console.log('Datos recibidos en PUT:', { // DEBUG
+      titulo,
+      productos: typeof productos,
+      productosContent: productos
+    });
 
     // Verificar que la rifa existe
     const [rifaExistente] = await connection.execute(
@@ -241,13 +250,36 @@ router.put('/:id', uploadRifa.single('foto_rifa'), async (req, res) => {
       boletos_disponibles, foto_rifa, fecha_publicacion, fecha_cierre, id
     ]);
 
-    // Eliminar productos existentes y agregar los nuevos
+    // Eliminar productos existentes
     await connection.execute('DELETE FROM productos_rifa WHERE rifa_id = ?', [id]);
 
+    // CORRECCIÓN: Parsear productos si viene como string
+    let productosArray = [];
+    if (productos) {
+      try {
+        // Si viene como string, parsearlo
+        if (typeof productos === 'string') {
+          productosArray = JSON.parse(productos);
+        } 
+        // Si ya es array, usarlo directamente
+        else if (Array.isArray(productos)) {
+          productosArray = productos;
+        }
+        
+        console.log('Productos parseados:', productosArray); // DEBUG
+        
+      } catch (e) {
+        console.error('Error al parsear productos:', e);
+        productosArray = [];
+      }
+    }
+
     // Insertar productos actualizados
-    if (productos && Array.isArray(productos)) {
-      for (const producto of productos) {
+    if (productosArray && Array.isArray(productosArray) && productosArray.length > 0) {
+      for (const producto of productosArray) {
         if (producto.titulo && producto.titulo.trim()) {
+          console.log('Insertando producto:', producto); // DEBUG
+          
           await connection.execute(`
             INSERT INTO productos_rifa (rifa_id, titulo, descripcion, foto)
             VALUES (?, ?, ?, ?)
@@ -274,7 +306,6 @@ router.put('/:id', uploadRifa.single('foto_rifa'), async (req, res) => {
     connection.release();
   }
 });
-
 // ========================================
 // ELIMINAR RIFA
 // ========================================

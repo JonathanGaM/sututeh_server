@@ -1,31 +1,35 @@
+
 // server/config/refreshSession.js
 const jwt = require("jsonwebtoken");
 
 module.exports = (req, res, next) => {
   const token = req.cookies.authToken;
-  if (!token) return res.status(401).end();
+  
+  // ⭐ Si no hay token, simplemente continúa (NO devuelve 401)
+  if (!token) {
+    return next();
+  }
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    // opcionalmente puedes volver a firmar un nuevo token para renovar el iat/exp:
     const newToken = jwt.sign(
       { sub: payload.sub, role: payload.role },
       process.env.JWT_SECRET,
-      { expiresIn: "30m" }
+      { expiresIn: "5m" }
     );
-    // reescribe la cookie:
+    
     res.cookie("authToken", newToken, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: "lax",
-      maxAge: 30 * 60 * 1000,
+      maxAge: 5 * 60 * 1000 ,
     });
 
-    // adjunta el payload a req.user para que tus rutas lo usen:
     req.user = payload;
     next();
   } catch (err) {
-    // token expirado o inválido
-    return res.status(401).json({ error: "Sesión expirada" });
+    // ⭐ Solo loguea el error, NO devuelve 401
+    console.log("Token inválido:", err.message);
+    next();
   }
 };

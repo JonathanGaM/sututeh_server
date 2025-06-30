@@ -5,6 +5,15 @@ const router = express.Router();
 const pool   = require('../bd'); // Asumimos que tu bd.js ya expone un pool que soporta await pool.query()
 const refreshSession = require('../config/refreshSession');
 
+const requireAuth = (req, res, next) => {
+  if (!req.user || !req.user.sub) {
+    return res.status(401).json({ 
+      error: 'Usuario no autenticado. Por favor, inicia sesión nuevamente.' 
+    });
+  }
+  next();
+};
+
    
 /**
  * 0) Crear encuesta/votación con preguntas y opciones (todo en uno)
@@ -330,7 +339,9 @@ router.get('/', async (req, res) => {
 
 // GET /api/encuestas-votaciones/activas-usuario
 // Devuelve solo encuestas/votaciones en estado “Activo” que este user no haya respondido
-router.get('/activas-usuario', refreshSession, async (req, res) => {
+router.get('/activas-usuario', refreshSession,
+    requireAuth,
+   async (req, res) => {
   const usuarioId = req.user.sub;
   try {
     const [rows] = await pool.query(
@@ -368,7 +379,9 @@ router.get('/activas-usuario', refreshSession, async (req, res) => {
 // POST /api/respuestas
 // Guarda las respuestas de un usuario a una encuesta/votación
 // -----------------------------
-router.post('/respuestas', refreshSession, async (req, res) => {
+router.post('/respuestas', refreshSession,
+    requireAuth,
+  async (req, res) => {
   const usuarioId = req.user.sub;
   const { encuesta_id, respuestas } = req.body;
   if (!encuesta_id || !Array.isArray(respuestas) || respuestas.length === 0) {
@@ -405,6 +418,7 @@ router.post('/respuestas', refreshSession, async (req, res) => {
 router.get(
   '/usuario/estado',
   refreshSession,
+    requireAuth,
   async (req, res) => {
     const usuarioId = req.user.sub;
     try {
