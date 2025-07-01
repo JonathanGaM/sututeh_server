@@ -16,9 +16,12 @@ const path = require('path');
 app.use(cors({
   origin:    
   [
+    //backen local y render
     'http://localhost:3000',
+    'https://sututeh-server.onrender.com',
+    //hostinger fronthen
     'https://sututeh.com',
-    'https://www.sututeh.com'
+    'https://www.sututeh.com',
   ],
   credentials: true
 }));

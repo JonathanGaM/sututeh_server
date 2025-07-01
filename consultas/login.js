@@ -78,15 +78,18 @@ router.post(
       const token = jwt.sign(payload, process.env.JWT_SECRET, {
         expiresIn: "5m",
       });
-      
+      // 🔧 6) Configuración dinámica de cookies (igual que refreshSession)
+      const isProduction = process.env.NODE_ENV === 'production';
 
       // 6) Enviar cookie HttpOnly y JSON de éxito
       res
       .cookie("authToken", token, {
-        httpOnly: true,
-        secure: false,
-        sameSite: "lax",
-        maxAge: 5 * 60 * 1000, // 30 minutos
+       
+         httpOnly: true,
+          secure: isProduction, // 🔧 Dinámico
+          sameSite: isProduction ? "none" : "lax", // 🔧 Dinámico
+          maxAge: 5 * 60 * 1000, // 5 minutos
+          path: "/" // 🔧 Asegurar disponibilidad
       })
       .json({ message: "Login exitoso", roleId: perfil.roleId });
         
@@ -98,11 +101,14 @@ router.post(
 );
 
 router.post("/logout", (req, res) => {
+  const isProduction = process.env.NODE_ENV === 'production';
   res
     .clearCookie("authToken", {
+      
       httpOnly: true,
-      secure: false,
-      sameSite: "lax",
+      secure: isProduction, // 🔧 Dinámico
+      sameSite: isProduction ? "none" : "lax", // 🔧 Dinámico
+      path: "/" // 🔧 Asegurar limpieza completa
     })
     .json({ message: "Logout exitoso" });
 });
