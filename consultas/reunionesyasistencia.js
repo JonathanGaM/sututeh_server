@@ -14,40 +14,102 @@ const requireAuth = (req, res, next) => {
   next();
 };
 
+// Función para detectar si necesitamos conversión de zona horaria
+let needsTimezoneConversion = null;
 
+const detectTimezoneNeed = async () => {
+  if (needsTimezoneConversion !== null) {
+    return needsTimezoneConversion;
+  }
+  
+  try {
+    // Comparamos la hora del sistema con la hora de la base de datos
+    const [rows] = await pool.query(`
+      SELECT 
+        NOW() as db_time,
+        CONVERT_TZ(NOW(), '+00:00', '-06:00') as mexico_time,
+        UTC_TIMESTAMP() as utc_time
+    `);
+    
+    const dbTime = new Date(rows[0].db_time);
+    const mexicoTime = new Date(rows[0].mexico_time);
+    const utcTime = new Date(rows[0].utc_time);
+    
+    // Si la diferencia entre NOW() y UTC_TIMESTAMP es 0, la DB está en UTC
+    const timeDiffHours = Math.abs(dbTime.getTime() - utcTime.getTime()) / (1000 * 60 * 60);
+    
+    // Si la diferencia es menos de 1 hora, asumimos que la DB está en UTC
+    needsTimezoneConversion = timeDiffHours < 1;
+    
+    console.log(`🕐 Detección de zona horaria:`);
+    console.log(`   DB Time: ${dbTime}`);
+    console.log(`   UTC Time: ${utcTime}`);
+    console.log(`   Diferencia: ${timeDiffHours} horas`);
+    console.log(`   Necesita conversión: ${needsTimezoneConversion}`);
+    
+    return needsTimezoneConversion;
+  } catch (error) {
+    console.error('Error detectando zona horaria:', error);
+    // Por defecto, no aplicar conversión (modo local)
+    needsTimezoneConversion = false;
+    return false;
+  }
+};
+
+// Función helper para obtener NOW() con la zona horaria correcta
+const getCurrentTime = async () => {
+  const needsConversion = await detectTimezoneNeed();
+  return needsConversion 
+    ? `CONVERT_TZ(NOW(), '+00:00', '-06:00')`
+    : `NOW()`;
+};
 
 // POST /api/reuniones
 router.post('/', async (req, res) => {
   try {
     const { title, date, time, type, location, description } = req.body;
+    const currentTime = await getCurrentTime();
+    
     // 1) Inserta
     const [result] = await pool.query(
       `INSERT INTO reuniones 
-         (title, date, time, type, location, description)
-       VALUES (?,?,?,?,?,?)`,
+         (title, date, time, type, location, description, created_at, updated_at)
+       VALUES (?,?,?,?,?,?, ${currentTime}, ${currentTime})`,
       [title, date, time, type, location, description]
     );
     const newId = result.insertId;
-    // 2) Lee de vuelta el registro completo
+    
+    // 2) Lee de vuelta el registro completo con status calculado
     const [rows] = await pool.query(
-      `SELECT id, title, date, time, type, location, description
-         FROM reuniones
-        WHERE id = ?`,
-      [ newId ]
+      `SELECT 
+         id, title, date, time, type, location, description, created_at, updated_at,
+         CASE
+           WHEN CONCAT(date, ' ', time) > ${currentTime} THEN 'Programada'
+           WHEN ${currentTime} BETWEEN CONCAT(date, ' ', time)
+                         AND DATE_ADD(CONCAT(date, ' ', time), INTERVAL 1 HOUR)
+             THEN 'En Curso'
+           ELSE 'Terminada'
+         END AS status
+       FROM reuniones
+       WHERE id = ?`,
+      [newId]
     );
-    // 3) Devuélvelo al cliente
+    
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'No pude crear la reunión' });
   }
 });
+
 /**
  * GET /api/reuniones
  * Devuelve todas las reuniones, con un campo status calculado
  */
 router.get('/', async (req, res) => {
   try {
+    const currentTime = await getCurrentTime();
+    
     const [rows] = await pool.execute(
       `SELECT
          id,
@@ -57,9 +119,11 @@ router.get('/', async (req, res) => {
          type,
          location,
          description,
+         created_at,
+         updated_at,
          CASE
-           WHEN CONCAT(date, ' ', time) > NOW() THEN 'Programada'
-           WHEN NOW() BETWEEN CONCAT(date, ' ', time)
+           WHEN CONCAT(date, ' ', time) > ${currentTime} THEN 'Programada'
+           WHEN ${currentTime} BETWEEN CONCAT(date, ' ', time)
                          AND DATE_ADD(CONCAT(date, ' ', time), INTERVAL 1 HOUR)
              THEN 'En Curso'
            ELSE 'Terminada'
@@ -81,6 +145,8 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const meetingId = req.params.id;
   try {
+    const currentTime = await getCurrentTime();
+    
     const [rows] = await pool.execute(
       `SELECT
          id,
@@ -90,9 +156,11 @@ router.get('/:id', async (req, res) => {
          type,
          location,
          description,
+         created_at,
+         updated_at,
          CASE
-           WHEN CONCAT(date, ' ', time) > NOW() THEN 'Programada'
-           WHEN NOW() BETWEEN CONCAT(date, ' ', time)
+           WHEN CONCAT(date, ' ', time) > ${currentTime} THEN 'Programada'
+           WHEN ${currentTime} BETWEEN CONCAT(date, ' ', time)
                          AND DATE_ADD(CONCAT(date, ' ', time), INTERVAL 1 HOUR)
              THEN 'En Curso'
            ELSE 'Terminada'
@@ -101,6 +169,7 @@ router.get('/:id', async (req, res) => {
        WHERE id = ?`,
       [meetingId]
     );
+    
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Reunión no encontrada.' });
     }
@@ -110,6 +179,7 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({ error: 'Error interno al obtener la reunión.' });
   }
 });
+
 /**
  * PUT /api/reuniones/:id
  * Actualiza los datos de una reunión y devuelve la reunión actualizada con su status
@@ -119,6 +189,8 @@ router.put('/:id', async (req, res) => {
   const { title, date, time, type, location, description } = req.body;
 
   try {
+    const currentTime = await getCurrentTime();
+    
     // 1) Actualiza el registro
     await pool.query(
       `UPDATE reuniones
@@ -127,7 +199,8 @@ router.put('/:id', async (req, res) => {
              time        = ?,
              type        = ?,
              location    = ?,
-             description = ?
+             description = ?,
+             updated_at  = ${currentTime}
        WHERE id = ?`,
       [title, date, time, type, location, description, meetingId]
     );
@@ -142,9 +215,11 @@ router.put('/:id', async (req, res) => {
          type,
          location,
          description,
+         created_at,
+         updated_at,
          CASE
-           WHEN CONCAT(date, ' ', time) > NOW() THEN 'Programada'
-           WHEN NOW() BETWEEN CONCAT(date, ' ', time)
+           WHEN CONCAT(date, ' ', time) > ${currentTime} THEN 'Programada'
+           WHEN ${currentTime} BETWEEN CONCAT(date, ' ', time)
                          AND DATE_ADD(CONCAT(date, ' ', time), INTERVAL 1 HOUR)
              THEN 'En Curso'
            ELSE 'Terminada'
@@ -158,7 +233,6 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Reunión no encontrada.' });
     }
 
-    // 3) Devuélvelo al cliente
     res.json(rows[0]);
   } catch (err) {
     console.error('Error al actualizar reunión:', err);
@@ -166,22 +240,21 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-
-
-
 router.post(
   '/:id/asistencia',
-    refreshSession,                 // <— asegura que req.user.sub esté presente
+    refreshSession,
     requireAuth,
   async (req, res) => {
     const reunionId = req.params.id;
     const usuarioId = req.user.sub;
 
     try {
+      const currentTime = await getCurrentTime();
+      
       await pool.query(
-        `INSERT INTO asistencia (reunion_id, usuario_id)
-           VALUES (?, ?)
-         ON DUPLICATE KEY UPDATE registered_at = NOW()`,
+        `INSERT INTO asistencia (reunion_id, usuario_id, registered_at)
+           VALUES (?, ?, ${currentTime})
+         ON DUPLICATE KEY UPDATE registered_at = ${currentTime}`,
         [reunionId, usuarioId]
       );
       res.json({ message: 'Asistencia registrada' });
@@ -192,26 +265,13 @@ router.post(
   }
 );
 
-// ───────────────────────────────────────────────────────────────────────────────
 // GET /api/reuniones/:id/asistentes
-// Devuelve todos los usuarios (nombre y apellidos) que asistieron a la reunión.
-// ───────────────────────────────────────────────────────────────────────────────
 router.get(
   '/:id/asistentes',
-  /*
-    Si NO quieres que este endpoint requiera estar logueado,
-    simplemente comenta o quita la siguiente línea:
-  */
-  /* refreshSession, */
   async (req, res) => {
     const reunionId = req.params.id;
 
     try {
-      // --------------------------------------------------------
-      // En lugar de unir a "autenticacion_usuarios" (que no tiene
-      // columnas de nombre/apellidos), unimos a "perfil_usuarios".
-      // Se asume que "perfil_usuarios.id" coincide con el "usuario_id".
-      // --------------------------------------------------------
       const [rows] = await pool.query(
         `
         SELECT 
@@ -235,28 +295,13 @@ router.get(
   }
 );
 
-
-// ───────────────────────────────────────────────────────────────────────────────
 // GET /api/reuniones/:id/faltantes
-// Devuelve todos los usuarios “activos” que NO asistieron a la reunión.
-// ───────────────────────────────────────────────────────────────────────────────
 router.get(
   '/:id/faltantes',
-  /*
-    Si NO quieres que este endpoint requiera estar logueado,
-    simplemente comenta o quita la siguiente línea:
-  */
-  /* refreshSession, */
   async (req, res) => {
     const reunionId = req.params.id;
 
     try {
-      // --------------------------------------------------------
-      // Seleccionamos de "perfil_usuarios" (con sus datos personales)
-      // todos aquellos usuarios cuyo "estatus" en autenticacion_usuarios
-      // sea 'Activo' y cuyo id NO esté en la tabla `asistencia` para
-      // la reunión dada.
-      // --------------------------------------------------------
       const [rows] = await pool.query(
         `
         SELECT 
@@ -287,21 +332,17 @@ router.get(
 
 /**
  * GET /api/reuniones/usuario/asistencia
- *
- * - Requiere refreshSession para obtener `req.user.sub` (el ID del usuario autenticado).
- * - Devuelve todas las reuniones junto con:
- *    • status:   "Programada" / "En Curso" / "Terminada" (según date+time vs NOW())  
- *    • asistio:  1 si el usuario ya está en la tabla `asistencia` para esa reunión,
- *               0 si no.
  */
 router.get(
   '/usuario/asistencia',
-  refreshSession, // asegura que req.user.sub exista
+  refreshSession,
   requireAuth,
   async (req, res) => {
     const usuarioId = req.user.sub;
 
     try {
+      const currentTime = await getCurrentTime();
+      
       const [rows] = await pool.query(
         `
         SELECT
@@ -313,8 +354,8 @@ router.get(
           r.location,
           r.description,
           CASE
-            WHEN CONCAT(r.date, ' ', r.time) > NOW() THEN 'Programada'
-            WHEN NOW() BETWEEN CONCAT(r.date, ' ', r.time)
+            WHEN CONCAT(r.date, ' ', r.time) > ${currentTime} THEN 'Programada'
+            WHEN ${currentTime} BETWEEN CONCAT(r.date, ' ', r.time)
                           AND DATE_ADD(CONCAT(r.date, ' ', r.time), INTERVAL 1 HOUR)
               THEN 'En Curso'
             ELSE 'Terminada'
@@ -332,11 +373,6 @@ router.get(
         [usuarioId]
       );
 
-      // rows = [
-      //   { id, title, date, time, type, location, description, status, asistio },
-      //   …
-      // ]
-
       res.json(rows);
     } catch (err) {
       console.error('Error al obtener reuniones con asistencia:', err);
@@ -344,9 +380,9 @@ router.get(
     }
   }
 );
+
 /**
  * DELETE /api/reuniones/:id
- * Elimina la reunión indicada por id y caduca automáticamente su asistencia.
  */
 router.delete('/:id', async (req, res) => {
   const meetingId = req.params.id;
@@ -364,6 +400,5 @@ router.delete('/:id', async (req, res) => {
     return res.status(500).json({ error: 'Error interno al eliminar la reunión.' });
   }
 });
-
 
 module.exports = router;
