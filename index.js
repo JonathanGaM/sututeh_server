@@ -49,6 +49,8 @@ const encuestasVotacionesRouter = require('./consultas/encuestasVotaciones');
 const documentosRouter = require('./consultas/documentos');
 const transparenciaRouter = require('./consultas/transparencia');
 const rifasRouter = require('./consultas/rifas');
+const authCheckRouter = require('./consultas/authCheck');
+
 
 
 
@@ -69,8 +71,10 @@ app.use('/api/transparencia', transparenciaRouter);
 app.use('/api/rifas', rifasRouter);
 
 
+
 // REFRESH DE SESIÓN (renueva JWT si existe)
 app.use(refreshSession);
+app.use('/api/auth-check', authCheckRouter);
 
 // RUTAS PROTEGIDAS (después de refreshSession)
 const perfilRouter = require('./consultas/perfil');

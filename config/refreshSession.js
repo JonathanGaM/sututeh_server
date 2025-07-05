@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken");
 module.exports = (req, res, next) => {
   const token = req.cookies.authToken;
   
-  // ⭐ Si no hay token, simplemente continúa (NO devuelve 401)
+  // Si no hay token, simplemente continúa (NO devuelve 401)
   if (!token) {
     return next();
   }
@@ -44,3 +44,4 @@ module.exports = (req, res, next) => {
     next();
   }
 };
+
