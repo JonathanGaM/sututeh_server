@@ -14,67 +14,16 @@ const requireAuth = (req, res, next) => {
   next();
 };
 
-// Función para detectar si necesitamos conversión de zona horaria
-let needsTimezoneConversion = null;
-
-const detectTimezoneNeed = async () => {
-  if (needsTimezoneConversion !== null) {
-    return needsTimezoneConversion;
-  }
-  
-  try {
-    // Comparamos la hora del sistema con la hora de la base de datos
-    const [rows] = await pool.query(`
-      SELECT 
-        NOW() as db_time,
-        CONVERT_TZ(NOW(), '+00:00', '-06:00') as mexico_time,
-        UTC_TIMESTAMP() as utc_time
-    `);
-    
-    const dbTime = new Date(rows[0].db_time);
-    const mexicoTime = new Date(rows[0].mexico_time);
-    const utcTime = new Date(rows[0].utc_time);
-    
-    // Si la diferencia entre NOW() y UTC_TIMESTAMP es 0, la DB está en UTC
-    const timeDiffHours = Math.abs(dbTime.getTime() - utcTime.getTime()) / (1000 * 60 * 60);
-    
-    // Si la diferencia es menos de 1 hora, asumimos que la DB está en UTC
-    needsTimezoneConversion = timeDiffHours < 1;
-    
-    console.log(`🕐 Detección de zona horaria:`);
-    console.log(`   DB Time: ${dbTime}`);
-    console.log(`   UTC Time: ${utcTime}`);
-    console.log(`   Diferencia: ${timeDiffHours} horas`);
-    console.log(`   Necesita conversión: ${needsTimezoneConversion}`);
-    
-    return needsTimezoneConversion;
-  } catch (error) {
-    console.error('Error detectando zona horaria:', error);
-    // Por defecto, no aplicar conversión (modo local)
-    needsTimezoneConversion = false;
-    return false;
-  }
-};
-
-// Función helper para obtener NOW() con la zona horaria correcta
-const getCurrentTime = async () => {
-  const needsConversion = await detectTimezoneNeed();
-  return needsConversion 
-    ? `CONVERT_TZ(NOW(), '+00:00', '-06:00')`
-    : `NOW()`;
-};
-
 // POST /api/reuniones
 router.post('/', async (req, res) => {
   try {
     const { title, date, time, type, location, description } = req.body;
-    const currentTime = await getCurrentTime();
     
-    // 1) Inserta
+    // 1) Inserta (ya no necesitamos created_at/updated_at manuales)
     const [result] = await pool.query(
       `INSERT INTO reuniones 
-         (title, date, time, type, location, description, created_at, updated_at)
-       VALUES (?,?,?,?,?,?, ${currentTime}, ${currentTime})`,
+         (title, date, time, type, location, description)
+       VALUES (?,?,?,?,?,?)`,
       [title, date, time, type, location, description]
     );
     const newId = result.insertId;
@@ -82,10 +31,10 @@ router.post('/', async (req, res) => {
     // 2) Lee de vuelta el registro completo con status calculado
     const [rows] = await pool.query(
       `SELECT 
-         id, title, date, time, type, location, description, created_at, updated_at,
+         id, title, date, time, type, location, description,
          CASE
-           WHEN CONCAT(date, ' ', time) > ${currentTime} THEN 'Programada'
-           WHEN ${currentTime} BETWEEN CONCAT(date, ' ', time)
+           WHEN CONCAT(date, ' ', time) > NOW() THEN 'Programada'
+           WHEN NOW() BETWEEN CONCAT(date, ' ', time)
                          AND DATE_ADD(CONCAT(date, ' ', time), INTERVAL 1 HOUR)
              THEN 'En Curso'
            ELSE 'Terminada'
@@ -108,8 +57,6 @@ router.post('/', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
-    const currentTime = await getCurrentTime();
-    
     const [rows] = await pool.execute(
       `SELECT
          id,
@@ -119,11 +66,9 @@ router.get('/', async (req, res) => {
          type,
          location,
          description,
-         created_at,
-         updated_at,
          CASE
-           WHEN CONCAT(date, ' ', time) > ${currentTime} THEN 'Programada'
-           WHEN ${currentTime} BETWEEN CONCAT(date, ' ', time)
+           WHEN CONCAT(date, ' ', time) > NOW() THEN 'Programada'
+           WHEN NOW() BETWEEN CONCAT(date, ' ', time)
                          AND DATE_ADD(CONCAT(date, ' ', time), INTERVAL 1 HOUR)
              THEN 'En Curso'
            ELSE 'Terminada'
@@ -145,8 +90,6 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const meetingId = req.params.id;
   try {
-    const currentTime = await getCurrentTime();
-    
     const [rows] = await pool.execute(
       `SELECT
          id,
@@ -156,11 +99,9 @@ router.get('/:id', async (req, res) => {
          type,
          location,
          description,
-         created_at,
-         updated_at,
          CASE
-           WHEN CONCAT(date, ' ', time) > ${currentTime} THEN 'Programada'
-           WHEN ${currentTime} BETWEEN CONCAT(date, ' ', time)
+           WHEN CONCAT(date, ' ', time) > NOW() THEN 'Programada'
+           WHEN NOW() BETWEEN CONCAT(date, ' ', time)
                          AND DATE_ADD(CONCAT(date, ' ', time), INTERVAL 1 HOUR)
              THEN 'En Curso'
            ELSE 'Terminada'
@@ -189,8 +130,6 @@ router.put('/:id', async (req, res) => {
   const { title, date, time, type, location, description } = req.body;
 
   try {
-    const currentTime = await getCurrentTime();
-    
     // 1) Actualiza el registro
     await pool.query(
       `UPDATE reuniones
@@ -199,8 +138,7 @@ router.put('/:id', async (req, res) => {
              time        = ?,
              type        = ?,
              location    = ?,
-             description = ?,
-             updated_at  = ${currentTime}
+             description = ?
        WHERE id = ?`,
       [title, date, time, type, location, description, meetingId]
     );
@@ -215,11 +153,9 @@ router.put('/:id', async (req, res) => {
          type,
          location,
          description,
-         created_at,
-         updated_at,
          CASE
-           WHEN CONCAT(date, ' ', time) > ${currentTime} THEN 'Programada'
-           WHEN ${currentTime} BETWEEN CONCAT(date, ' ', time)
+           WHEN CONCAT(date, ' ', time) > NOW() THEN 'Programada'
+           WHEN NOW() BETWEEN CONCAT(date, ' ', time)
                          AND DATE_ADD(CONCAT(date, ' ', time), INTERVAL 1 HOUR)
              THEN 'En Curso'
            ELSE 'Terminada'
@@ -249,12 +185,10 @@ router.post(
     const usuarioId = req.user.sub;
 
     try {
-      const currentTime = await getCurrentTime();
-      
       await pool.query(
-        `INSERT INTO asistencia (reunion_id, usuario_id, registered_at)
-           VALUES (?, ?, ${currentTime})
-         ON DUPLICATE KEY UPDATE registered_at = ${currentTime}`,
+        `INSERT INTO asistencia (reunion_id, usuario_id)
+           VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE registered_at = NOW()`,
         [reunionId, usuarioId]
       );
       res.json({ message: 'Asistencia registrada' });
@@ -341,8 +275,6 @@ router.get(
     const usuarioId = req.user.sub;
 
     try {
-      const currentTime = await getCurrentTime();
-      
       const [rows] = await pool.query(
         `
         SELECT
@@ -354,8 +286,8 @@ router.get(
           r.location,
           r.description,
           CASE
-            WHEN CONCAT(r.date, ' ', r.time) > ${currentTime} THEN 'Programada'
-            WHEN ${currentTime} BETWEEN CONCAT(r.date, ' ', r.time)
+            WHEN CONCAT(r.date, ' ', r.time) > NOW() THEN 'Programada'
+            WHEN NOW() BETWEEN CONCAT(r.date, ' ', r.time)
                           AND DATE_ADD(CONCAT(r.date, ' ', r.time), INTERVAL 1 HOUR)
               THEN 'En Curso'
             ELSE 'Terminada'
