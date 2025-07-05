@@ -19,6 +19,9 @@ router.post('/', async (req, res) => {
   try {
     const { title, date, time, type, location, description } = req.body;
     
+    // Forzar zona horaria de México
+    await pool.execute("SET time_zone = '-06:00'");
+    
     // 1) Inserta (ya no necesitamos created_at/updated_at manuales)
     const [result] = await pool.query(
       `INSERT INTO reuniones 
@@ -57,6 +60,9 @@ router.post('/', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
+    // Forzar zona horaria de México en la consulta
+    await pool.execute("SET time_zone = '-06:00'");
+    
     const [rows] = await pool.execute(
       `SELECT
          id,
@@ -90,6 +96,9 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const meetingId = req.params.id;
   try {
+    // Forzar zona horaria de México en la consulta
+    await pool.execute("SET time_zone = '-06:00'");
+    
     const [rows] = await pool.execute(
       `SELECT
          id,
