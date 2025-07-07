@@ -76,7 +76,7 @@ router.post(
       const payload = { sub: user.id, role: perfil.roleName };
       
       const token = jwt.sign(payload, process.env.JWT_SECRET, {
-        expiresIn: "5m",
+        expiresIn: "10m",
       });
       // 🔧 6) Configuración dinámica de cookies (igual que refreshSession)
       const isProduction = process.env.NODE_ENV === 'production';
@@ -88,7 +88,7 @@ router.post(
          httpOnly: true,
           secure: isProduction, // 🔧 Dinámico
           sameSite: isProduction ? "none" : "lax", // 🔧 Dinámico
-          maxAge: 5 * 60 * 1000, // 5 minutos
+          maxAge: 10 * 60 * 1000, // 10 minutos
           path: "/" // 🔧 Asegurar disponibilidad
       })
       .json({ message: "Login exitoso", roleId: perfil.roleId });

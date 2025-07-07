@@ -15,14 +15,14 @@ module.exports = (req, res, next) => {
     const newToken = jwt.sign(
       { sub: payload.sub, role: payload.role },
       process.env.JWT_SECRET,
-      { expiresIn: "5m" }
+      { expiresIn: "10m" }
     );
      const isProduction = process.env.NODE_ENV === 'production';
     res.cookie("authToken", newToken, {
       httpOnly: true,
        secure: isProduction,
       sameSite: isProduction ? "none" : "lax",
-      maxAge: 5 * 60 * 1000 ,
+      maxAge: 10 * 60 * 1000 ,
        path: "/" 
     });
 
