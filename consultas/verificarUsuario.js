@@ -30,8 +30,8 @@ router.post(
     try {
       console.log(`🔍 Verificando usuario: ${nombreCompleto}`);
       
-      // Limpiar y normalizar el nombre
-      const nombreLimpio = nombreCompleto.trim().toLowerCase();
+      // Limpiar, normalizar y quitar acentos del nombre de entrada
+      const nombreLimpio = normalizarTexto(nombreCompleto.trim());
       
       // Separar el nombre en palabras para búsqueda más flexible
       const palabrasNombre = nombreLimpio.split(/\s+/);
@@ -44,7 +44,9 @@ router.post(
         });
       }
 
-      // Buscar usuario en la base de datos con comparación más estricta de los 3 nombres
+      console.log(`📝 Nombre normalizado: "${nombreLimpio}" (palabras: ${palabrasNombre.length})`);
+
+      // Buscar usuario en la base de datos con comparación sin acentos
       const query = `
         SELECT 
           au.id,
@@ -57,25 +59,55 @@ router.post(
         JOIN perfil_usuarios pu ON au.id = pu.id
         WHERE au.estatus = 'Activo'
           AND (
-            -- Comparación completa (nombre + apellido paterno + apellido materno)
-            CONCAT(LOWER(pu.nombre), ' ', LOWER(pu.apellido_paterno), ' ', LOWER(pu.apellido_materno)) LIKE ?
-            -- Comparación por partes individuales
-            OR (LOWER(pu.nombre) LIKE ? 
-                AND LOWER(pu.apellido_paterno) LIKE ? 
-                AND LOWER(pu.apellido_materno) LIKE ?)
-            -- Comparación flexible con al menos 2 de los 3 nombres
-            OR (LOWER(pu.nombre) LIKE ? AND LOWER(pu.apellido_paterno) LIKE ?)
-            OR (LOWER(pu.nombre) LIKE ? AND LOWER(pu.apellido_materno) LIKE ?)
-            OR (LOWER(pu.apellido_paterno) LIKE ? AND LOWER(pu.apellido_materno) LIKE ?)
+            -- Comparación completa sin acentos
+            REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+              LOWER(CONCAT(pu.nombre, ' ', pu.apellido_paterno, ' ', pu.apellido_materno)),
+              'á', 'a'), 'é', 'e'), 'í', 'i'), 'ó', 'o'), 'ú', 'u'),
+              'ñ', 'n'), 'ü', 'u'), 'à', 'a'), 'è', 'e'), 'ì', 'i') LIKE ?
+            -- Comparación por partes individuales sin acentos
+            OR (REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                  LOWER(pu.nombre), 'á', 'a'), 'é', 'e'), 'í', 'i'), 'ó', 'o'), 'ú', 'u'),
+                  'ñ', 'n'), 'ü', 'u'), 'à', 'a'), 'è', 'e'), 'ì', 'i') LIKE ? 
+                AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                  LOWER(pu.apellido_paterno), 'á', 'a'), 'é', 'e'), 'í', 'i'), 'ó', 'o'), 'ú', 'u'),
+                  'ñ', 'n'), 'ü', 'u'), 'à', 'a'), 'è', 'e'), 'ì', 'i') LIKE ? 
+                AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                  LOWER(pu.apellido_materno), 'á', 'a'), 'é', 'e'), 'í', 'i'), 'ó', 'o'), 'ú', 'u'),
+                  'ñ', 'n'), 'ü', 'u'), 'à', 'a'), 'è', 'e'), 'ì', 'i') LIKE ?)
+            -- Comparación flexible con al menos 2 de los 3 nombres sin acentos
+            OR (REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                  LOWER(pu.nombre), 'á', 'a'), 'é', 'e'), 'í', 'i'), 'ó', 'o'), 'ú', 'u'),
+                  'ñ', 'n'), 'ü', 'u'), 'à', 'a'), 'è', 'e'), 'ì', 'i') LIKE ? 
+                AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                  LOWER(pu.apellido_paterno), 'á', 'a'), 'é', 'e'), 'í', 'i'), 'ó', 'o'), 'ú', 'u'),
+                  'ñ', 'n'), 'ü', 'u'), 'à', 'a'), 'è', 'e'), 'ì', 'i') LIKE ?)
+            OR (REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                  LOWER(pu.nombre), 'á', 'a'), 'é', 'e'), 'í', 'i'), 'ó', 'o'), 'ú', 'u'),
+                  'ñ', 'n'), 'ü', 'u'), 'à', 'a'), 'è', 'e'), 'ì', 'i') LIKE ? 
+                AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                  LOWER(pu.apellido_materno), 'á', 'a'), 'é', 'e'), 'í', 'i'), 'ó', 'o'), 'ú', 'u'),
+                  'ñ', 'n'), 'ü', 'u'), 'à', 'a'), 'è', 'e'), 'ì', 'i') LIKE ?)
+            OR (REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                  LOWER(pu.apellido_paterno), 'á', 'a'), 'é', 'e'), 'í', 'i'), 'ó', 'o'), 'ú', 'u'),
+                  'ñ', 'n'), 'ü', 'u'), 'à', 'a'), 'è', 'e'), 'ì', 'i') LIKE ? 
+                AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                  LOWER(pu.apellido_materno), 'á', 'a'), 'é', 'e'), 'í', 'i'), 'ó', 'o'), 'ú', 'u'),
+                  'ñ', 'n'), 'ü', 'u'), 'à', 'a'), 'è', 'e'), 'ì', 'i') LIKE ?)
           )
         LIMIT 10
       `;
 
-      // Crear patrones de búsqueda más específicos
+      // Crear patrones de búsqueda normalizados (sin acentos)
       const nombreCompletoPattern = `%${nombreLimpio}%`;
       const nombrePattern = `%${palabrasNombre[0]}%`;
       const apellidoPaternoPattern = `%${palabrasNombre[1]}%`;
       const apellidoMaternoPattern = palabrasNombre[2] ? `%${palabrasNombre[2]}%` : `%${palabrasNombre[1]}%`;
+
+      console.log(`🔍 Patrones de búsqueda:`);
+      console.log(`   Completo: ${nombreCompletoPattern}`);
+      console.log(`   Nombre: ${nombrePattern}`);
+      console.log(`   Apellido Paterno: ${apellidoPaternoPattern}`);
+      console.log(`   Apellido Materno: ${apellidoMaternoPattern}`);
 
       const [usuarios] = await pool.query(query, [
         nombreCompletoPattern,        // Búsqueda completa
@@ -100,15 +132,16 @@ router.post(
         });
       }
 
-      // Buscar la mejor coincidencia con algoritmo mejorado
+      // Buscar la mejor coincidencia con algoritmo mejorado (sin acentos)
       let mejorCoincidencia = null;
       let mejorPuntuacion = 0;
 
       usuarios.forEach(usuario => {
-        const nombreCompleto_DB = `${usuario.nombre} ${usuario.apellido_paterno} ${usuario.apellido_materno}`.toLowerCase();
-        const puntuacion = calcularSimilitudCompleta(nombreLimpio, nombreCompleto_DB, usuario);
+        const nombreCompleto_DB = `${usuario.nombre} ${usuario.apellido_paterno} ${usuario.apellido_materno}`;
+        const nombreCompleto_DB_Normalizado = normalizarTexto(nombreCompleto_DB);
+        const puntuacion = calcularSimilitudCompleta(nombreLimpio, nombreCompleto_DB_Normalizado, usuario);
         
-        console.log(`🔍 Comparando: "${nombreLimpio}" vs "${nombreCompleto_DB}" - Puntuación: ${puntuacion.toFixed(3)}`);
+        console.log(`🔍 Comparando: "${nombreLimpio}" vs "${nombreCompleto_DB_Normalizado}" - Puntuación: ${puntuacion.toFixed(3)}`);
         
         if (puntuacion > mejorPuntuacion) {
           mejorPuntuacion = puntuacion;
@@ -146,14 +179,42 @@ router.post(
   }
 );
 
-// Función mejorada para calcular similitud de los 3 nombres
+// ===== FUNCIONES AUXILIARES =====
+
+/**
+ * Normaliza texto removiendo acentos, tildes y convirtiendo a minúsculas
+ * @param {string} texto - Texto a normalizar
+ * @returns {string} - Texto normalizado sin acentos
+ */
+function normalizarTexto(texto) {
+  if (!texto) return '';
+  
+  return texto
+    .toLowerCase()
+    .normalize('NFD') // Descompone caracteres acentuados
+    .replace(/[\u0300-\u036f]/g, '') // Remueve marcas diacríticas (acentos)
+    .replace(/ñ/g, 'n') // Reemplaza ñ específicamente
+    .replace(/[^a-z0-9\s]/g, '') // Remueve caracteres especiales excepto letras, números y espacios
+    .replace(/\s+/g, ' ') // Normaliza espacios múltiples
+    .trim();
+}
+
+// Función mejorada para calcular similitud de los 3 nombres (sin acentos)
 function calcularSimilitudCompleta(nombreInput, nombreDB, usuario) {
+  // Normalizar nombres de usuario de la BD
+  const nombreNormalizado = normalizarTexto(usuario.nombre);
+  const apellidoPaternoNormalizado = normalizarTexto(usuario.apellido_paterno);
+  const apellidoMaternoNormalizado = normalizarTexto(usuario.apellido_materno);
+  
   const palabrasInput = nombreInput.split(/\s+/).filter(p => p.length > 1);
-  const palabrasDB = [usuario.nombre.toLowerCase(), usuario.apellido_paterno.toLowerCase(), usuario.apellido_materno.toLowerCase()];
+  const palabrasDB = [nombreNormalizado, apellidoPaternoNormalizado, apellidoMaternoNormalizado];
   
   let puntuacionTotal = 0;
   let coincidenciasExactas = 0;
   let coincidenciasParciales = 0;
+  
+  console.log(`   🔤 Palabras input: [${palabrasInput.join(', ')}]`);
+  console.log(`   🔤 Palabras DB: [${palabrasDB.join(', ')}]`);
   
   // Verificar coincidencias exactas por posición
   palabrasInput.forEach((palabraInput, index) => {
@@ -164,17 +225,22 @@ function calcularSimilitudCompleta(nombreInput, nombreDB, usuario) {
       if (palabraInput === palabraDB) {
         coincidenciasExactas++;
         puntuacionTotal += 1.0;
+        console.log(`   ✅ Coincidencia exacta: "${palabraInput}" = "${palabraDB}"`);
       }
       // Coincidencia parcial (una contiene a la otra)
       else if (palabraInput.includes(palabraDB) || palabraDB.includes(palabraInput)) {
         coincidenciasParciales++;
         puntuacionTotal += 0.7;
+        console.log(`   🟡 Coincidencia parcial: "${palabraInput}" ≈ "${palabraDB}"`);
       }
       // Similitud por distancia de caracteres
       else {
         const similitud = calcularSimilitudLevenshtein(palabraInput, palabraDB);
         if (similitud > 0.8) {
           puntuacionTotal += similitud * 0.6;
+          console.log(`   🔵 Similitud alta: "${palabraInput}" vs "${palabraDB}" = ${similitud.toFixed(3)}`);
+        } else {
+          console.log(`   ❌ Sin coincidencia: "${palabraInput}" vs "${palabraDB}" = ${similitud.toFixed(3)}`);
         }
       }
     }
@@ -182,13 +248,17 @@ function calcularSimilitudCompleta(nombreInput, nombreDB, usuario) {
   
   // Verificar también coincidencias en cualquier orden (para casos donde el orden cambie)
   palabrasInput.forEach(palabraInput => {
-    palabrasDB.forEach(palabraDB => {
-      if (palabraInput === palabraDB) {
-        // Ya contado arriba, no duplicar
-        return;
-      }
-      if (palabraInput.includes(palabraDB) || palabraDB.includes(palabraInput)) {
-        puntuacionTotal += 0.3; // Bonus menor por coincidencia fuera de orden
+    palabrasDB.forEach((palabraDB, dbIndex) => {
+      // Solo verificar si no fue procesado en el orden correcto arriba
+      const inputIndex = palabrasInput.indexOf(palabraInput);
+      if (inputIndex !== dbIndex) {
+        if (palabraInput === palabraDB) {
+          puntuacionTotal += 0.4; // Bonus por coincidencia fuera de orden
+          console.log(`   🔄 Coincidencia fuera de orden: "${palabraInput}" = "${palabraDB}"`);
+        } else if (palabraInput.includes(palabraDB) || palabraDB.includes(palabraInput)) {
+          puntuacionTotal += 0.2; // Bonus menor por coincidencia parcial fuera de orden
+          console.log(`   🔄 Coincidencia parcial fuera de orden: "${palabraInput}" ≈ "${palabraDB}"`);
+        }
       }
     });
   });
