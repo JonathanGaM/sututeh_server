@@ -51,7 +51,7 @@ const documentosRouter = require('./consultas/documentos');
 const transparenciaRouter = require('./consultas/transparencia');
 const rifasRouter = require('./consultas/rifas');
 const authCheckRouter = require('./consultas/authCheck');
-
+const verificarUsuarioRoutes = require('./consultas/verificarUsuario');
 
 
 
@@ -70,6 +70,9 @@ app.use('/api/encuestas-votaciones', encuestasVotacionesRouter);
 app.use('/api/documentos', documentosRouter);
 app.use('/api/transparencia', transparenciaRouter);
 app.use('/api/rifas', rifasRouter);
+app.use('/api/verificar-usuario', verificarUsuarioRoutes);
+
+
 
 
 
