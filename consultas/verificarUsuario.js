@@ -267,4 +267,138 @@ router.get('/test-numeros-sindicalizados', async (req, res) => {
     }
 });
 
+// ===== NUEVOS ENDPOINTS PARA ALEXA - NOTICIAS Y REUNIONES =====
+
+// Endpoint para obtener noticias de la semana actual
+router.get('/noticias-semana-actual', async (req, res) => {
+    try {
+        console.log('🗞️ Consultando noticias de la semana actual...');
+        
+        // Configurar zona horaria de México
+        await pool.execute("SET time_zone = '-06:00'");
+        
+        // Obtener noticias de la semana actual (basado en número de semana del año)
+        const query = `
+            SELECT 
+                n.id, n.titulo, n.descripcion, n.contenido,
+                n.fecha_publicacion, n.fecha_creacion, n.fecha_actualizacion,
+                'Publicado' AS estado,
+                COALESCE(
+                    CONCAT('[', GROUP_CONCAT(
+                        CONCAT('"', nm.url_imagen, '"') SEPARATOR ','
+                    ), ']'),
+                    '[]'
+                ) AS imagenes,
+                MAX(nm.url_video) AS url_video
+            FROM noticias n
+            LEFT JOIN noticias_multimedia nm ON nm.noticia_id = n.id
+            WHERE WEEK(n.fecha_publicacion, 1) = WEEK(CURDATE(), 1)
+              AND YEAR(n.fecha_publicacion) = YEAR(CURDATE())
+              AND DATE(n.fecha_publicacion) <= CURDATE()
+            GROUP BY n.id
+            ORDER BY n.fecha_publicacion DESC
+        `;
+        
+        const [noticias] = await pool.execute(query);
+        
+        console.log(`✅ Encontradas ${noticias.length} noticias de la semana actual`);
+        
+        // Parsear las imágenes de JSON string a array
+        const noticiasFormateadas = noticias.map(noticia => ({
+            ...noticia,
+            imagenes: JSON.parse(noticia.imagenes)
+        }));
+        
+        res.json({
+            mensaje: `Noticias de la semana actual (semana ${new Date().getWeek()})`,
+            semana_actual: new Date().getWeek(),
+            año: new Date().getFullYear(),
+            total_noticias: noticiasFormateadas.length,
+            noticias: noticiasFormateadas
+        });
+        
+    } catch (error) {
+        console.error('❌ Error al obtener noticias de la semana actual:', error);
+        res.status(500).json({
+            error: 'Error interno del servidor',
+            mensaje: 'No se pudieron obtener las noticias de la semana actual'
+        });
+    }
+});
+
+// Endpoint para obtener reuniones futuras del mes actual
+router.get('/reuniones-futuras-mes', async (req, res) => {
+    try {
+        console.log('🗓️ Consultando reuniones futuras del mes actual...');
+        
+        // Configurar zona horaria de México
+        await pool.execute("SET time_zone = '-06:00'");
+        
+        // Función para calcular el estado de la reunión
+        const getEstadoReunion = () => {
+            return `
+                CASE
+                    WHEN NOW() < DATE_SUB(CONCAT(date, ' ', time), INTERVAL 10 MINUTE) THEN 'Programada'
+                    WHEN NOW() BETWEEN DATE_SUB(CONCAT(date, ' ', time), INTERVAL 10 MINUTE) 
+                                   AND DATE_ADD(CONCAT(date, ' ', time), INTERVAL 15 MINUTE) THEN 'Registro_Abierto'
+                    WHEN NOW() BETWEEN DATE_ADD(CONCAT(date, ' ', time), INTERVAL 15 MINUTE)
+                                   AND DATE_ADD(CONCAT(date, ' ', time), INTERVAL 30 MINUTE) THEN 'Retardos_Permitidos'
+                    WHEN NOW() BETWEEN DATE_ADD(CONCAT(date, ' ', time), INTERVAL 30 MINUTE)
+                                   AND DATE_ADD(CONCAT(date, ' ', time), INTERVAL 60 MINUTE) THEN 'Falta_No_Justificada'
+                    ELSE 'Terminada'
+                END
+            `;
+        };
+        
+        // Obtener reuniones futuras del mes actual (desde hoy en adelante)
+        const query = `
+            SELECT
+                id,
+                title,
+                date,
+                time,
+                type,
+                location,
+                description,
+                ${getEstadoReunion()} AS status,
+                created_at,
+                updated_at
+            FROM reuniones
+            WHERE MONTH(date) = MONTH(CURDATE())
+              AND YEAR(date) = YEAR(CURDATE())
+              AND date >= CURDATE()
+            ORDER BY date ASC, time ASC
+        `;
+        
+        const [reuniones] = await pool.execute(query);
+        
+        console.log(`✅ Encontradas ${reuniones.length} reuniones futuras del mes actual`);
+        
+        res.json({
+            mensaje: `Reuniones futuras del mes actual (${new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })})`,
+            mes_actual: new Date().toLocaleDateString('es-MX', { month: 'long' }),
+            año: new Date().getFullYear(),
+            fecha_consulta: new Date().toLocaleDateString('es-MX'),
+            total_reuniones: reuniones.length,
+            reuniones: reuniones
+        });
+        
+    } catch (error) {
+        console.error('❌ Error al obtener reuniones futuras del mes:', error);
+        res.status(500).json({
+            error: 'Error interno del servidor',
+            mensaje: 'No se pudieron obtener las reuniones futuras del mes actual'
+        });
+    }
+});
+
+// Función auxiliar para obtener el número de semana del año
+Date.prototype.getWeek = function() {
+    const date = new Date(this.getTime());
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+    const week1 = new Date(date.getFullYear(), 0, 4);
+    return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+};
+
 module.exports = router;
