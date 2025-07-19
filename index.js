@@ -30,6 +30,17 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use(express.json());
 app.use(cookieParser());
+
+// Agregar esto después de las configuraciones CORS y antes de las rutas
+// ENDPOINT DE HEALTH CHECK PARA UPTIMEROBOT
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    message: 'Servidor SUTUTEH funcionando correctamente',
+    uptime: process.uptime()
+  });
+});
 // Ruta principal
 app.get("/", (req, res) => {
   res.send("Servidor y API funcionando correctamente");
@@ -52,6 +63,8 @@ const transparenciaRouter = require('./consultas/transparencia');
 const rifasRouter = require('./consultas/rifas');
 const authCheckRouter = require('./consultas/authCheck');
 const verificarUsuarioRoutes = require('./consultas/verificarUsuario');
+const gestionUsuariosRouter = require('./consultas/gestion_usuarios');
+
 
 
 
@@ -71,6 +84,8 @@ app.use('/api/documentos', documentosRouter);
 app.use('/api/transparencia', transparenciaRouter);
 app.use('/api/rifas', rifasRouter);
 app.use('/api/verificar-usuario', verificarUsuarioRoutes);
+app.use('/api/usuarios', gestionUsuariosRouter);
+
 
 
 

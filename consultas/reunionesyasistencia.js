@@ -549,7 +549,7 @@ router.get(
 
       const reuniones = Array.isArray(reunionesResult) && Array.isArray(reunionesResult[0]) ? reunionesResult[0] : reunionesResult;
 
-      // 2) Obtener todos los usuarios activos
+      // 2) Obtener solo usuarios activos con registro completado
       const usuariosResult = await pool.query(
         `SELECT 
            pu.id,
@@ -558,7 +558,8 @@ router.get(
            pu.apellido_materno
          FROM perfil_usuarios pu
          JOIN autenticacion_usuarios au ON pu.id = au.id
-         WHERE au.estatus = 'Activo'
+         WHERE au.estatus = 'Activo' 
+           AND au.registro_completado = 1
          ORDER BY pu.nombre, pu.apellido_paterno`
       );
 

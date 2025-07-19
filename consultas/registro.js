@@ -221,6 +221,7 @@ router.post(
     body("educationalProgram").optional({ checkFalsy: true, nullable: true }).isInt().withMessage("Programa inválido"),
     body("workerNumber").notEmpty().withMessage("Número de trabajador requerido"),
     body("educationalLevel").isInt().withMessage("Nivel educativo inválido"),
+    body("antiguedad").optional({ checkFalsy: true, nullable: true }).isISO8601().withMessage("Fecha de antigüedad inválida"),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -240,6 +241,7 @@ router.post(
       educationalProgram,
       workerNumber,
       educationalLevel,
+       antiguedad,
     } = req.body;
 
     try {
@@ -277,7 +279,8 @@ router.post(
              programa_id       = ?,
              nivel_id          = ?,
              numero_trabajador = ?,
-             rol_sindicato_id  = 1
+             rol_sindicato_id  = 1,
+             antiguedad        = ?
          WHERE id = ?`,
         [
           firstName,
@@ -291,6 +294,7 @@ router.post(
           educationalProgram || null,
           educationalLevel,
           workerNumber,
+          antiguedad || null,
           userId,
         ]
       );

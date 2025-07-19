@@ -206,6 +206,7 @@ router.delete('/:id', async (req, res) => {
 /**
  * GET /api/puestos/libres
  * Devuelve todos los usuarios que NO están asignados a ningún puesto.
+ * Solo incluye usuarios activos con registro completado.
  */
 router.get('/libres', async (req, res) => {
   try {
@@ -217,11 +218,14 @@ router.get('/libres', async (req, res) => {
         u.apellido_materno,
         u.url_foto
       FROM perfil_usuarios u
-      WHERE u.id NOT IN (
-        SELECT usuario_id
-        FROM puestos_sindicato
-        WHERE usuario_id IS NOT NULL
-      )
+      JOIN autenticacion_usuarios au ON u.id = au.id
+      WHERE au.estatus = 'Activo' 
+        AND au.registro_completado = 1
+        AND u.id NOT IN (
+          SELECT usuario_id
+          FROM puestos_sindicato
+          WHERE usuario_id IS NOT NULL
+        )
     `);
 
     return res.json(rows);
@@ -230,7 +234,6 @@ router.get('/libres', async (req, res) => {
     return res.status(500).json({ error: 'Error en la base de datos.' });
   }
 });
-
 
 /**
  * GET /api/puestos/estadisticas/agremiados

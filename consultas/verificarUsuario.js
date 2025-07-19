@@ -29,7 +29,7 @@ router.post('/verificar-fecha-nacimiento', async (req, res) => {
             AND au.verificado = 1 
             AND au.registro_completado = 1
             AND au.estatus = 'Activo'
-        `;
+        `;s
         
         const [rows] = await pool.execute(query, [fechaNacimiento]);
         
