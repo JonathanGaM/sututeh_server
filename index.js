@@ -64,9 +64,9 @@ app.get('/health', async (req, res) => {
     let dbTime = null;
     
     try {
-      const [dbResult] = await pool.query('SELECT NOW() as current_time');
+      const [dbResult] = await pool.query('SELECT NOW() as db_time');
       dbStatus = 'Connected';
-      dbTime = dbResult[0]?.current_time;
+      dbTime = dbResult[0]?.db_time;
     } catch (dbErr) {
       dbStatus = `Error: ${dbErr.message}`;
     }
