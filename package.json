@@ -1,13 +1,22 @@
 {
-  "name": "server",
+  "name": "sututeh-server",
   "version": "1.0.0",
-  "description": "",
+  "description": "Servidor backend para SUTUTEH - Sindicato Único de Trabajadores",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "sututeh",
+    "sindicato",
+    "api",
+    "backend",
+    "universidad",
+    "trabajadores"
+  ],
+  "author": "SUTUTEH",
   "license": "ISC",
   "dependencies": {
     "axios": "^1.8.2",
@@ -28,5 +37,9 @@
     "nodemailer": "^6.10.0",
     "nodemon": "^3.1.9",
     "xlsx": "^0.18.5"
-  }
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "homepage": "https://sututeh.com"
 }
