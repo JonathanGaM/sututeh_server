@@ -29,6 +29,83 @@ const getEstadoReunion = () => {
     END
   `;
 };
+// AGREGAR ESTE ENDPOINT en reunionesyasistencia.js
+
+// GET /api/reuniones/proxima-semana - NUEVA RUTA
+router.get('/proxima-semana', async (req, res) => {
+  try {
+    // Forzar zona horaria de México
+    await pool.execute("SET time_zone = '-06:00'");
+    
+    // Obtener la próxima reunión más cercana de la semana actual
+    const result = await pool.query(
+      `SELECT 
+         id,
+         title,
+         date,
+         time,
+         type,
+         location,
+         description,
+         ${getEstadoReunion()} AS status,
+         CONCAT(date, ' ', time) AS meeting_datetime,
+         YEARWEEK(date, 1) AS semana_reunion,
+         YEARWEEK(NOW(), 1) AS semana_actual
+       FROM reuniones 
+       WHERE 
+         -- Solo reuniones de la semana actual
+         YEARWEEK(date, 1) = YEARWEEK(NOW(), 1)
+         -- Solo reuniones futuras (incluyendo las de hoy que no han empezado)
+         AND CONCAT(date, ' ', time) >= NOW()
+         -- Solo reuniones en estado "Programada"
+         AND (${getEstadoReunion()}) = 'Programada'
+       ORDER BY date ASC, time ASC
+       LIMIT 1`
+    );
+
+    const rows = Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result;
+    
+    if (!rows || rows.length === 0) {
+      return res.json({ 
+        message: 'No hay reuniones programadas para esta semana',
+        proxima_reunion: null,
+        fecha_actual: new Date().toISOString(),
+        semana_actual: `Semana ${new Date().getFullYear()}-${Math.ceil((new Date().getTime() - new Date(new Date().getFullYear(), 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000))}`
+      });
+    }
+
+    const proximaReunion = rows[0];
+    
+    // Calcular días restantes
+    const fechaReunion = new Date(`${proximaReunion.date} ${proximaReunion.time}`);
+    const ahora = new Date();
+    const diasRestantes = Math.ceil((fechaReunion.getTime() - ahora.getTime()) / (1000 * 60 * 60 * 24));
+    const horasRestantes = Math.ceil((fechaReunion.getTime() - ahora.getTime()) / (1000 * 60 * 60));
+
+    res.json({
+      message: 'Próxima reunión encontrada',
+      proxima_reunion: {
+        ...proximaReunion,
+        dias_restantes: diasRestantes,
+        horas_restantes: horasRestantes,
+        es_hoy: diasRestantes === 0,
+        es_manana: diasRestantes === 1
+      },
+      metadata: {
+        fecha_consulta: new Date().toISOString(),
+        semana_actual: proximaReunion.semana_actual,
+        semana_reunion: proximaReunion.semana_reunion
+      }
+    });
+
+  } catch (error) {
+    console.error('Error al obtener próxima reunión:', error);
+    res.status(500).json({ 
+      error: 'Error interno al obtener la próxima reunión',
+      details: error.message 
+    });
+  }
+});
 
 // POST /api/reuniones
 router.post('/', async (req, res) => {
