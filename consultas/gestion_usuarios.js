@@ -878,7 +878,11 @@ router.post('/agregar-individual', [
   body('correo_electronico')
     .isEmail()
     .withMessage('Correo electrónico inválido')
-    .normalizeEmail(),
+    //.normalizeEmail(),
+    .custom((value) => {
+  console.log('📧 Email antes de normalizar:', value);
+  return true;
+}),
   body('fecha_nacimiento')
     .isISO8601()
     .withMessage('Fecha de nacimiento inválida'),

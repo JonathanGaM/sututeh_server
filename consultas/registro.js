@@ -364,43 +364,233 @@ router.get('/niveles', async (req, res) => {
   }
 });
 // 5. Validar existencia de usuario por correo y fecha de nacimiento
-router.post('/validarUsuario', async (req, res) => {
-  const { correo_electronico, fecha_nacimiento } = req.body;
-  if (!correo_electronico || !fecha_nacimiento) {
-    return res.status(400).json({ error: 'Faltan correo_electronico o fecha_nacimiento' });
+// ✅ SOLUCIÓN: Agregar logs detallados para debuggear la fecha
+
+router.post('/validarUsuario', [
+  body('correo_electronico')
+    .trim()
+    .toLowerCase()
+    .isEmail()
+    .withMessage('Correo electrónico inválido'),
+  body('fecha_nacimiento')
+    .isISO8601()
+    .withMessage('Fecha de nacimiento inválida')
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ 
+      success: false,
+      errors: errors.array() 
+    });
   }
 
+  const { correo_electronico, fecha_nacimiento } = req.body;
+
+  // ✅ LOGS DETALLADOS PARA DEBUG
+  console.log('🔍 Validando usuario - Datos recibidos:', {
+    correo_original: req.body.correo_electronico,
+    correo_procesado: correo_electronico,
+    fecha_original: req.body.fecha_nacimiento,
+    fecha_procesada: fecha_nacimiento,
+    fecha_tipo: typeof fecha_nacimiento
+  });
+
   try {
-    // 1) Buscar id y registro_completado
+    // ✅ PRIMERA CONSULTA: Ver qué hay exactamente en la BD
+    console.log('📊 Buscando usuario exacto...');
+    const [exactRows] = await pool.query(
+      `SELECT 
+        a.id, 
+        a.correo_electronico, 
+        a.registro_completado,
+        p.fecha_nacimiento,
+        DATE_FORMAT(p.fecha_nacimiento, '%Y-%m-%d') as fecha_formatted
+       FROM autenticacion_usuarios AS a
+       JOIN perfil_usuarios AS p ON a.id = p.id
+       WHERE a.correo_electronico = ?`,
+      [correo_electronico]
+    );
+
+    console.log('📋 Usuarios con este email:', exactRows);
+
+    // ✅ SEGUNDA CONSULTA: Buscar con la fecha específica
+    console.log('🎯 Buscando con fecha específica...');
     const [rows] = await pool.query(
-      `SELECT a.id, a.registro_completado
+      `SELECT 
+        a.id, 
+        a.correo_electronico, 
+        a.registro_completado,
+        p.fecha_nacimiento,
+        DATE_FORMAT(p.fecha_nacimiento, '%Y-%m-%d') as fecha_formatted
        FROM autenticacion_usuarios AS a
        JOIN perfil_usuarios AS p ON a.id = p.id
        WHERE a.correo_electronico = ?
          AND DATE(p.fecha_nacimiento) = ?`,
-      [correo_electronico.toLowerCase(), fecha_nacimiento]
+      [correo_electronico, fecha_nacimiento]
     );
 
-    // 2) Si no existe
+    console.log('🎯 Resultado con fecha específica:', rows);
+
+    // ✅ TERCERA CONSULTA: Probar diferentes formatos de fecha
+    console.log('🔄 Probando formatos alternativos...');
+    const [altRows] = await pool.query(
+      `SELECT 
+        a.id, 
+        a.correo_electronico, 
+        a.registro_completado,
+        p.fecha_nacimiento,
+        DATE_FORMAT(p.fecha_nacimiento, '%Y-%m-%d') as fecha_formatted,
+        CASE 
+          WHEN DATE(p.fecha_nacimiento) = ? THEN 'EXACTA'
+          WHEN p.fecha_nacimiento = ? THEN 'DATETIME_EXACTO'
+          WHEN DATE_FORMAT(p.fecha_nacimiento, '%Y-%m-%d') = ? THEN 'FORMAT_MATCH'
+          ELSE 'NO_MATCH'
+        END as comparacion
+       FROM autenticacion_usuarios AS a
+       JOIN perfil_usuarios AS p ON a.id = p.id
+       WHERE a.correo_electronico = ?`,
+      [fecha_nacimiento, fecha_nacimiento, fecha_nacimiento, correo_electronico]
+    );
+
+    console.log('🔄 Pruebas de formato:', altRows);
+
+    // Si no hay resultados con la consulta original, intentar con diferentes aproximaciones
+    if (rows.length === 0 && exactRows.length > 0) {
+      console.log('⚠️ Usuario existe pero fecha no coincide');
+      
+      // Intentar match más flexible
+      const [flexibleRows] = await pool.query(
+        `SELECT 
+          a.id, 
+          a.correo_electronico, 
+          a.registro_completado
+         FROM autenticacion_usuarios AS a
+         JOIN perfil_usuarios AS p ON a.id = p.id
+         WHERE a.correo_electronico = ?
+           AND (
+             DATE(p.fecha_nacimiento) = ? OR
+             p.fecha_nacimiento = ? OR
+             DATE_FORMAT(p.fecha_nacimiento, '%Y-%m-%d') = ?
+           )`,
+        [correo_electronico, fecha_nacimiento, fecha_nacimiento, fecha_nacimiento]
+      );
+
+      if (flexibleRows.length > 0) {
+        console.log('✅ Encontrado con búsqueda flexible');
+        const { id, registro_completado } = flexibleRows[0];
+        
+        if (registro_completado === 1) {
+          return res.status(400).json({ 
+            exists: true, 
+            registered: true, 
+            message: 'Usuario ya completó el registro' 
+          });
+        }
+
+        return res.json({ 
+          exists: true, 
+          registered: false, 
+          id 
+        });
+      }
+    }
+
+    // Lógica original
     if (rows.length === 0) {
-      return res.status(404).json({ exists: false, message: 'Usuario no encontrado' });
+      console.log('❌ Usuario no encontrado después de todas las pruebas');
+      return res.status(404).json({ 
+        exists: false, 
+        message: 'Usuario no encontrado',
+        debug: {
+          correo_buscado: correo_electronico,
+          fecha_buscada: fecha_nacimiento,
+          usuarios_con_email: exactRows.length
+        }
+      });
     }
 
     const { id, registro_completado } = rows[0];
 
-    // 3) Si ya completó el registro
     if (registro_completado === 1) {
-      return res.status(400).json({ exists: true, registered: true, message: 'Usuario ya completó el registro' });
+      console.log('⚠️ Usuario ya completó el registro');
+      return res.status(400).json({ 
+        exists: true, 
+        registered: true, 
+        message: 'Usuario ya completó el registro' 
+      });
     }
 
-    // 4) Usuario preregistrado pero no completado
-    return res.json({ exists: true, registered: false, id });
+    console.log('✅ Usuario válido para registro');
+    return res.json({ 
+      exists: true, 
+      registered: false, 
+      id 
+    });
+
   } catch (err) {
-    console.error('Error validando usuario:', err);
-    return res.status(500).json({ error: 'Error al validar usuario' });
+    console.error('❌ Error validando usuario:', err);
+    return res.status(500).json({ 
+      error: 'Error al validar usuario',
+      details: err.message 
+    });
   }
 });
 
+// ✅ FUNCIÓN PARA PROBAR MANUALMENTE EN LA CONSOLA
+async function testSpecificUser() {
+  const email = 'chucho24reyes@gmail.com';
+  const fecha = '2000-02-24';
+  
+  console.log('🧪 Probando usuario específico:');
+  console.log('📧 Email:', email);
+  console.log('📅 Fecha:', fecha);
+  
+  try {
+    // Consulta exacta que estás usando
+    const [rows] = await pool.query(
+      `SELECT 
+        a.id, 
+        a.correo_electronico, 
+        a.registro_completado,
+        p.fecha_nacimiento,
+        DATE_FORMAT(p.fecha_nacimiento, '%Y-%m-%d') as fecha_formatted,
+        DATE(p.fecha_nacimiento) as fecha_date_only
+       FROM autenticacion_usuarios AS a
+       JOIN perfil_usuarios AS p ON a.id = p.id
+       WHERE a.correo_electronico = ?
+         AND DATE(p.fecha_nacimiento) = ?`,
+      [email, fecha]
+    );
+    
+    console.log('✅ Resultado:', rows);
+    
+    if (rows.length === 0) {
+      console.log('❌ No encontrado. Probando sin filtro de fecha...');
+      
+      const [allRows] = await pool.query(
+        `SELECT 
+          a.id, 
+          a.correo_electronico, 
+          a.registro_completado,
+          p.fecha_nacimiento,
+          DATE_FORMAT(p.fecha_nacimiento, '%Y-%m-%d') as fecha_formatted,
+          DATE(p.fecha_nacimiento) as fecha_date_only
+         FROM autenticacion_usuarios AS a
+         JOIN perfil_usuarios AS p ON a.id = p.id
+         WHERE a.correo_electronico = ?`,
+        [email]
+      );
+      
+      console.log('📋 Todos los usuarios con este email:', allRows);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error:', error);
+  }
+}
+
+// ✅ EJECUTAR PARA PROBAR (descomenta la siguiente línea)
+// testSpecificUser();
 
   // Validar reCAPTCHA
 router.post("/validarCaptcha", async (req, res) => {
