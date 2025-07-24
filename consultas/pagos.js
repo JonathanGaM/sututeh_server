@@ -1,8 +1,10 @@
+
 const express = require('express');
 const router = express.Router();
 const { MercadoPagoConfig, Preference } = require('mercadopago');
 const refreshSession = require('../config/refreshSession');
-const db = require('../bd'); // Asegúrate de tener esto
+const db = require('../bd');
+
 const requireAuth = (req, res, next) => {
   if (!req.user || !req.user.sub) {
     return res.status(401).json({ error: 'Usuario no autenticado.' });
@@ -15,12 +17,16 @@ const client = new MercadoPagoConfig({
   accessToken: process.env.MP_ACCESS_TOKEN
 });
 
-// POST /api/pagos
-router.post('/', async (req, res) => {
+// POST /api/pagos - AHORA CON PROTECCIÓN
+router.post('/', refreshSession, requireAuth, async (req, res) => {
   try {
-    const { boletos, total } = req.body;
+    const usuario_id = req.user.sub; // Obtener ID del usuario autenticado
+    const { boletos, total, rifa_id } = req.body;
 
-    if (!boletos || boletos.length === 0 || !total) {
+    console.log('Usuario autenticado:', usuario_id);
+    console.log('Datos recibidos:', { boletos, total, rifa_id });
+
+    if (!boletos || boletos.length === 0 || !total || !rifa_id) {
       return res.status(400).json({ error: 'Datos incompletos para generar el pago.' });
     }
 
@@ -40,6 +46,8 @@ router.post('/', async (req, res) => {
       },
       auto_return: 'approved',
       metadata: {
+        usuario_id: usuario_id,
+        rifa_id: rifa_id,
         boletos: boletos
       }
     };
@@ -90,15 +98,16 @@ router.post('/webhook', async (req, res) => {
       const payment = await client.payment.get({ id });
       const { status, metadata } = payment;
 
-      const { rifa_id, boletos } = metadata;
+      const { usuario_id, rifa_id, boletos } = metadata;
 
       await db.query(`
         UPDATE compras
         SET estado = ?
-        WHERE rifa_id = ? AND boletos = ?
+        WHERE usuario_id = ? AND rifa_id = ? AND boletos = ?
       `, [
         status === 'approved' ? 'aprobado' :
         status === 'rejected' ? 'rechazado' : 'pendiente',
+        usuario_id,
         rifa_id,
         JSON.stringify(boletos)
       ]);
