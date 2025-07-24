@@ -65,6 +65,7 @@ const authCheckRouter = require('./consultas/authCheck');
 const verificarUsuarioRoutes = require('./consultas/verificarUsuario');
 const gestionUsuariosRouter = require('./consultas/gestion_usuarios');
 const mlPrediccionesRouter = require('./consultas/ml_predicciones');
+const pagosrouter =require('./consultas/pagos');
 
 
 
@@ -87,6 +88,7 @@ app.use('/api/rifas', rifasRouter);
 app.use('/api/verificar-usuario', verificarUsuarioRoutes);
 app.use('/api/usuarios', gestionUsuariosRouter);
 app.use('/api/ml', mlPrediccionesRouter);
+app.use('/api/pagos', pagosrouter);
 
 
 
