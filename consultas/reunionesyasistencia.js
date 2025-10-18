@@ -336,6 +336,8 @@ router.post(
            puntaje = VALUES(puntaje)`,
         [reunionId, usuarioId, estadoAsistencia, puntaje]
       );
+      // ✅ Actualizar puntos automáticamente del usuario
+      await pool.query("CALL sp_actualizar_puntos_usuario(?)", [usuarioId]);
 
       res.json({ 
         message: 'Asistencia registrada correctamente',

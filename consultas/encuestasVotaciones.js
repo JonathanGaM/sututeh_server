@@ -404,8 +404,14 @@ router.post('/respuestas', refreshSession,
       );
     }
 
+   
     await pool.query('COMMIT');
-    res.json({ message: 'Respuestas guardadas correctamente.' });
+
+// ✅ Actualizar puntos del usuario automáticamente
+await pool.query("CALL sp_actualizar_puntos_usuario(?)", [usuarioId]);
+
+res.json({ message: 'Respuestas guardadas correctamente y puntos actualizados.' });
+
   } catch (err) {
     await pool.query('ROLLBACK');
     console.error('Error al guardar respuestas:', err);

@@ -19,6 +19,7 @@ app.use(cors({
   [
     //backen local y render
     'http://localhost:3000',
+    'http://192.168.100.9:3000',
     'https://sututeh-server.onrender.com',
     //hostinger fronthen
     'https://sututeh.com',
@@ -66,6 +67,8 @@ const verificarUsuarioRoutes = require('./consultas/verificarUsuario');
 const gestionUsuariosRouter = require('./consultas/gestion_usuarios');
 const mlPrediccionesRouter = require('./consultas/ml_predicciones');
 const pagosrouter =require('./consultas/pagos');
+const puntosRouter = require("./consultas/puntos");
+
 
 
 
@@ -89,6 +92,8 @@ app.use('/api/verificar-usuario', verificarUsuarioRoutes);
 app.use('/api/usuarios', gestionUsuariosRouter);
 app.use('/api/ml', mlPrediccionesRouter);
 app.use('/api/pagos', pagosrouter);
+app.use("/api/puntos", puntosRouter);
+
 
 
 
@@ -108,6 +113,7 @@ app.use('/api/img',             imgRoutes);
 
 
 
-app.listen(port, () => {
-  console.log(`Servidor corriendo en http://localhost:${port}`);
+// Escuchar en todas las interfaces (permite acceso desde tu IP local)
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Servidor corriendo en http://192.168.100.9:${port}`);
 });
