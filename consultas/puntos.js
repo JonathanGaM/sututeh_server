@@ -1,3 +1,10 @@
+
+// =====================================================
+// SCRUM-46: Endpoints para sistema de puntos
+// Descripción: API para consultar puntos e historial
+// Autor: Jonathan García Martínez
+// Versión: v0.2.0
+// =====================================================
 const express = require("express");
 const router = express.Router();
 const pool = require("../bd");
