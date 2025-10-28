@@ -17,10 +17,10 @@ jobs:
     steps:
     # ========== CHECKOUT Y SETUP ==========
     - name: 📦 Checkout código
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: 🔧 Configurar Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
@@ -61,7 +61,7 @@ jobs:
         ls -lh build/static/css/*.css 2>/dev/null | head -5 || echo "No hay archivos CSS"
     
     - name: 💾 Subir artefactos de build
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: build-production
         path: build/
