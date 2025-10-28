@@ -1,4 +1,4 @@
-// Auto-deploy test - CI/CD configurado
+// Auto-deploy test - CI/CD configurado v2
 // index.js
 process.env.TZ = 'America/Mexico_City';
 require("dotenv").config();
