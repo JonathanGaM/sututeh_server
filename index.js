@@ -70,7 +70,7 @@ const gestionUsuariosRouter = require('./consultas/gestion_usuarios');
 const mlPrediccionesRouter = require('./consultas/ml_predicciones');
 const pagosrouter =require('./consultas/pagos');
 const puntosRouter = require("./consultas/puntos");
-
+const logrosRouter = require("./consultas/logros");
 
 
 
@@ -95,7 +95,7 @@ app.use('/api/usuarios', gestionUsuariosRouter);
 app.use('/api/ml', mlPrediccionesRouter);
 app.use('/api/pagos', pagosrouter);
 app.use("/api/puntos", puntosRouter);
-
+app.use("/api/logros", logrosRouter);
 
 
 
