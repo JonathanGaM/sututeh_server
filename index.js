@@ -23,9 +23,13 @@ app.use(cors({
     'http://localhost:3000',
     'http://192.168.100.9:3000',
     'https://sututeh-server.onrender.com',
+    'http://192.168.100.9:3001',  // ← AGREGADO
+
     //hostinger fronthen
     'https://sututeh.com',
     'https://www.sututeh.com',
+    'http://localhost:3001',  // ← AGREGADO
+
   ],
   credentials: true
 }));
@@ -71,6 +75,11 @@ const mlPrediccionesRouter = require('./consultas/ml_predicciones');
 const pagosrouter =require('./consultas/pagos');
 const puntosRouter = require("./consultas/puntos");
 const logrosRouter = require("./consultas/logros");
+const autenticacionMvl = require("./consultas/autenticacionmvl");
+const rankingRouter = require('./consultas/ranking');
+const dashboardRoutes = require('./consultas/dashboard');
+
+
 
 
 
@@ -96,6 +105,11 @@ app.use('/api/ml', mlPrediccionesRouter);
 app.use('/api/pagos', pagosrouter);
 app.use("/api/puntos", puntosRouter);
 app.use("/api/logros", logrosRouter);
+app.use("/api/auth/mobile", autenticacionMvl);
+app.use('/api/ranking', rankingRouter);
+app.use('/api/dashboard', dashboardRoutes);
+
+
 
 
 

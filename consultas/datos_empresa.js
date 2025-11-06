@@ -65,8 +65,6 @@
      * Actualiza cualquier campo de la empresa, y opcionalmente avatar y/o cover
      */
 
-
-
     router.put(
         "/:id",
         upload.fields([
