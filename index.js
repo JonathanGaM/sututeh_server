@@ -10,6 +10,7 @@ const pool           = require("./bd");
 const refreshSession = require("./config/refreshSession");
 
 
+
 const app = express();
 const port = process.env.PORT || 3001;
 const path = require('path');
@@ -53,6 +54,7 @@ app.get("/", (req, res) => {
   res.send("Servidor y API funcionando correctamente");
 });
 
+
 // RUTAS PÚBLICAS (antes de refreshSession)
 const registroRoutes            = require('./consultas/registro');
 const loginRoutes               = require('./consultas/login');
@@ -78,6 +80,9 @@ const logrosRouter = require("./consultas/logros");
 const autenticacionMvl = require("./consultas/autenticacionmvl");
 const rankingRouter = require('./consultas/ranking');
 const dashboardRoutes = require('./consultas/dashboard');
+const notificacionesRoutes = require('./consultas/notificaciones');
+
+
 
 
 
@@ -108,6 +113,12 @@ app.use("/api/logros", logrosRouter);
 app.use("/api/auth/mobile", autenticacionMvl);
 app.use('/api/ranking', rankingRouter);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/notificaciones', notificacionesRoutes);
+app.use('/api', require('./consultas/asistencia'));
+
+
+
+
 
 
 
