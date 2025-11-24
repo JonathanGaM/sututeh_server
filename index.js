@@ -115,6 +115,8 @@ app.use('/api/ranking', rankingRouter);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api', require('./consultas/asistencia'));
+app.use("/api/mobile", require("./consultas/asistencia_mobile"));
+
 
 
 

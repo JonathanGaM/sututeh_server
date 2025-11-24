@@ -1,13 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../bd");
+const firebaseService = require("../consultas/firebase_service");
 
 // ==========================
 // 📅 GET /api/notificaciones
 // ==========================
 router.get("/", async (req, res) => {
   try {
-    // Forzar zona horaria del servidor
     await pool.execute("SET time_zone = '-06:00'");
     const ahora = new Date();
 
@@ -21,29 +21,25 @@ router.get("/", async (req, res) => {
     const notificaciones = [];
 
     for (const reunion of reuniones) {
-      // Combinar fecha y hora correctamente con zona local
       const [hora, minutos, segundos] = reunion.time.split(":").map(Number);
       const fechaReunion = new Date(reunion.date);
       fechaReunion.setHours(hora, minutos, segundos, 0);
 
       const diffMs = fechaReunion.getTime() - ahora.getTime();
       const diffHoras = diffMs / (1000 * 60 * 60);
-      const diffDias = diffHoras / 24;
       const diasDesdeCreacion =
         (ahora.getTime() - new Date(reunion.created_at).getTime()) /
         (1000 * 60 * 60 * 24);
 
-      // Si la reunión ya pasó, no generar notificación
       if (diffHoras < 0) continue;
 
-      // Fecha formateada legible
       const fechaTexto = fechaReunion.toLocaleDateString("es-MX", {
         weekday: "long",
         day: "numeric",
         month: "long",
       });
 
-      // ===== 1️⃣ Nueva reunión creada (últimos 7 días)
+      // 1️⃣ Nueva reunión creada (últimos 7 días)
       if (diasDesdeCreacion <= 7) {
         notificaciones.push({
           id: `nueva_${reunion.id}`,
@@ -61,7 +57,7 @@ router.get("/", async (req, res) => {
         });
       }
 
-      // ===== 2️⃣ Recordatorio - 24 horas antes
+      // 2️⃣ Recordatorio - 24 horas antes
       if (diffHoras <= 24 && diffHoras > 4) {
         notificaciones.push({
           id: `24h_${reunion.id}`,
@@ -79,7 +75,7 @@ router.get("/", async (req, res) => {
         });
       }
 
-      // ===== 3️⃣ Recordatorio - 4 horas antes
+      // 3️⃣ Recordatorio - 4 horas antes
       if (diffHoras <= 4 && diffHoras >= 0) {
         notificaciones.push({
           id: `4h_${reunion.id}`,
@@ -136,6 +132,166 @@ router.get("/contador", async (req, res) => {
   } catch (error) {
     console.error("Error al obtener contador:", error);
     res.status(500).json({ error: "Error al obtener contador" });
+  }
+});
+
+// ==========================
+// 🔥 NUEVOS ENDPOINTS PARA PUSH NOTIFICATIONS
+// ==========================
+
+// 🧪 Enviar notificación de prueba
+router.post("/test", async (req, res) => {
+  try {
+    const { usuario_id } = req.body;
+
+    if (!usuario_id) {
+      return res.status(400).json({ error: "usuario_id es requerido" });
+    }
+
+    const resultado = await firebaseService.enviarNotificacionUsuario(
+      usuario_id,
+      "🧪 Notificación de Prueba",
+      "Si ves esto, las notificaciones push funcionan correctamente ✅",
+      { tipo: "test", timestamp: new Date().toISOString() }
+    );
+
+    res.json(resultado);
+  } catch (error) {
+    console.error("Error en test:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 📅 Enviar notificación de nueva reunión
+router.post("/enviar-nueva-reunion", async (req, res) => {
+  try {
+    const { reunion_id, usuarios_ids } = req.body;
+
+    if (!reunion_id || !usuarios_ids || usuarios_ids.length === 0) {
+      return res.status(400).json({ 
+        error: "reunion_id y usuarios_ids son requeridos" 
+      });
+    }
+
+    // Obtener datos de la reunión
+    const [reuniones] = await pool.query(
+      "SELECT * FROM reuniones WHERE id = ?",
+      [reunion_id]
+    );
+
+    if (reuniones.length === 0) {
+      return res.status(404).json({ error: "Reunión no encontrada" });
+    }
+
+    const reunion = reuniones[0];
+    const resultado = await firebaseService.notificarNuevaReunion(
+      reunion,
+      usuarios_ids
+    );
+
+    res.json(resultado);
+  } catch (error) {
+    console.error("Error enviando notificación:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ⏰ Enviar recordatorio 24h
+router.post("/enviar-recordatorio-24h", async (req, res) => {
+  try {
+    const { reunion_id, usuarios_ids } = req.body;
+
+    const [reuniones] = await pool.query(
+      "SELECT * FROM reuniones WHERE id = ?",
+      [reunion_id]
+    );
+
+    if (reuniones.length === 0) {
+      return res.status(404).json({ error: "Reunión no encontrada" });
+    }
+
+    const reunion = reuniones[0];
+    const resultado = await firebaseService.notificarRecordatorio24h(
+      reunion,
+      usuarios_ids
+    );
+
+    res.json(resultado);
+  } catch (error) {
+    console.error("Error enviando recordatorio:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 🔔 Enviar recordatorio 4h
+router.post("/enviar-recordatorio-4h", async (req, res) => {
+  try {
+    const { reunion_id, usuarios_ids } = req.body;
+
+    const [reuniones] = await pool.query(
+      "SELECT * FROM reuniones WHERE id = ?",
+      [reunion_id]
+    );
+
+    if (reuniones.length === 0) {
+      return res.status(404).json({ error: "Reunión no encontrada" });
+    }
+
+    const reunion = reuniones[0];
+    const resultado = await firebaseService.notificarRecordatorio4h(
+      reunion,
+      usuarios_ids
+    );
+
+    res.json(resultado);
+  } catch (error) {
+    console.error("Error enviando recordatorio:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 📤 Notificación personalizada
+router.post("/personalizada", async (req, res) => {
+  try {
+    const { usuarios_ids, titulo, mensaje, datos } = req.body;
+
+    if (!usuarios_ids || !titulo || !mensaje) {
+      return res.status(400).json({ 
+        error: "usuarios_ids, titulo y mensaje son requeridos" 
+      });
+    }
+
+    const resultado = await firebaseService.enviarNotificacionMasiva(
+      usuarios_ids,
+      titulo,
+      mensaje,
+      datos || {}
+    );
+
+    res.json(resultado);
+  } catch (error) {
+    console.error("Error enviando notificación personalizada:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 📊 Obtener todos los usuarios con tokens activos
+router.get("/usuarios-con-tokens", async (req, res) => {
+  try {
+    const [usuarios] = await pool.query(`
+      SELECT DISTINCT u.id, u.email, u.nombre_completo, ft.fcm_token
+      FROM usuarios u
+      INNER JOIN fcm_tokens ft ON u.id = ft.usuario_id
+      WHERE ft.activo = TRUE
+    `);
+
+    res.json({
+      total: usuarios.length,
+      usuarios,
+    });
+  } catch (error) {
+    console.error("Error obteniendo usuarios con tokens:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 

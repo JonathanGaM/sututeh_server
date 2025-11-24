@@ -3,6 +3,8 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../bd');  // tu pool.promise()
 const refreshSession = require('../config/refreshSession');
+const firebaseService = require("../consultas/firebase_service");
+
 
 // Función helper para validar autenticación
 const requireAuth = (req, res, next) => {
@@ -111,37 +113,60 @@ router.get('/proxima-semana', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { title, date, time, type, location, description } = req.body;
-    
-    // Forzar zona horaria de México
+
     await pool.execute("SET time_zone = '-06:00'");
-    
-    // 1) Inserta
+
+    // 1) INSERTAR REUNIÓN
     const result = await pool.query(
       `INSERT INTO reuniones 
-         (title, date, time, type, location, description)
-       VALUES (?,?,?,?,?,?)`,
+        (title, date, time, type, location, description)
+      VALUES (?,?,?,?,?,?)`,
       [title, date, time, type, location, description]
     );
-    
+
     const newId = Array.isArray(result) ? result[0].insertId : result.insertId;
-    
-    // 2) Lee de vuelta el registro completo con status calculado
+
+    // 2) LEER LA REUNIÓN RECIÉN CREADA
     const rows = await pool.query(
       `SELECT 
          id, title, date, time, type, location, description,
-         ${getEstadoReunion()} AS status
+         ${getEstadoReunion()} AS status,
+         created_at
        FROM reuniones
        WHERE id = ?`,
       [newId]
     );
-    
-    const resultRow = Array.isArray(rows) ? rows[0][0] : rows[0];
-    res.status(201).json(resultRow);
+
+    const reunion = Array.isArray(rows) ? rows[0][0] : rows[0];
+
+    // 3) OBTENER TODOS LOS USUARIOS CON TOKEN FCM
+    const [usuarios] = await pool.query(
+      `SELECT DISTINCT usuario_id 
+       FROM fcm_tokens 
+       WHERE activo = TRUE
+         AND fcm_token IS NOT NULL`
+    );
+
+    const usuariosIds = usuarios.map(u => u.usuario_id);
+
+    // 4) ENVIAR NOTIFICACIÓN PUSH
+    if (usuariosIds.length > 0) {
+      console.log("📣 Enviando notificación de NUEVA REUNIÓN a:", usuariosIds);
+      await firebaseService.notificarNuevaReunion(reunion, usuariosIds);
+    } else {
+      console.log("⚠️ No hay usuarios con tokens activos");
+    }
+
+    // 5) RESPONDER
+   res.status(201).json(reunion);
+
+
   } catch (err) {
-    console.error(err);
+    console.error("❌ Error creando reunión:", err);
     res.status(500).json({ error: 'No pude crear la reunión' });
   }
 });
+
 
 /**
  * GET /api/reuniones

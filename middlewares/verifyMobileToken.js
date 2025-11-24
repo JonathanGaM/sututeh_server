@@ -1,13 +1,18 @@
+//middlewares/verifyMobiletoken.js
 const jwt = require("jsonwebtoken");
 
 module.exports = (req, res, next) => {
-  const authHeader = req.headers["authorization"];
+  // ACEPTA TODAS LAS FORMAS DEL HEADER
+  const authHeader =
+    req.headers.authorization ||
+    req.headers.Authorization ||
+    req.headers.AUTHORIZATION;
 
   if (!authHeader) {
     return res.status(401).json({ error: "Token no proporcionado" });
   }
 
-  const token = authHeader.split(" ")[1]; // "Bearer <token>"
+  const token = authHeader.split(" ")[1];
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
