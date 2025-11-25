@@ -19,6 +19,51 @@ const serviceAccount = {
   client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL,
   universe_domain: process.env.FIREBASE_UNIVERSE_DOMAIN, // ⭐ IMPORTANTE
 };
+// ========================================
+// 🕒 FORMATEAR FECHA BONITA PARA NOTIFICACIONES
+// ========================================
+function formatearFechaBonita(fechaISO, horaStr) {
+  try {
+    // Normalizar la fecha
+    let fechaLimpia = new Date(fechaISO);
+
+    // Si la fecha es inválida, intentar parseo manual (caso: "Thu Nov 27 2025")
+    if (isNaN(fechaLimpia.getTime())) {
+      fechaLimpia = new Date(Date.parse(fechaISO));
+    }
+
+    // Normalizar hora
+    let [h, m, s] = horaStr.split(":");
+    h = h || "00";
+    m = m || "00";
+    s = s || "00";
+
+    fechaLimpia.setHours(h, m, s, 0);
+
+    const opcionesFecha = {
+      weekday: "long",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    };
+
+    const opcionesHora = {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    };
+
+    const fechaBonita = fechaLimpia.toLocaleDateString("es-MX", opcionesFecha);
+    const horaBonita = fechaLimpia.toLocaleTimeString("es-MX", opcionesHora);
+
+    return { fechaBonita, horaBonita };
+
+  } catch (err) {
+    console.error("❌ Error formateando fecha:", err);
+    return { fechaBonita: "Fecha inválida", horaBonita: "Hora inválida" };
+  }
+}
+
 
 
 // Inicializar Firebase Admin
@@ -196,7 +241,8 @@ async function limpiarTokensInvalidos(responses, tokens) {
 
 async function notificarNuevaReunion(reunion, usuariosIds) {
   const titulo = '📅 Nueva Reunión Programada';
-  const mensaje = `${reunion.title} - ${reunion.date} a las ${reunion.time}`;
+const { fechaBonita, horaBonita } = formatearFechaBonita(reunion.date, reunion.time);
+const mensaje = `${reunion.title} • ${fechaBonita} a las ${horaBonita}`;
   
   const datos = {
     tipo: 'nueva_reunion',
@@ -213,7 +259,8 @@ async function notificarNuevaReunion(reunion, usuariosIds) {
 
 async function notificarRecordatorio24h(reunion, usuariosIds) {
   const titulo = '⏰ Recordatorio: Reunión mañana';
-  const mensaje = `Mañana: ${reunion.title} a las ${reunion.time}`;
+  const { fechaBonita, horaBonita } = formatearFechaBonita(reunion.date, reunion.time);
+const mensaje = `Mañana es la reunión: ${reunion.title} • ${fechaBonita} a las ${horaBonita}`;
   
   const datos = {
     tipo: 'recordatorio_24h',
@@ -228,7 +275,8 @@ async function notificarRecordatorio24h(reunion, usuariosIds) {
 
 async function notificarRecordatorio4h(reunion, usuariosIds) {
   const titulo = '🔔 ¡Reunión hoy!';
-  const mensaje = `Hoy a las ${reunion.time}: ${reunion.title}`;
+  const { fechaBonita, horaBonita } = formatearFechaBonita(reunion.date, reunion.time);
+const mensaje = `Hoy: ${reunion.title} • ${fechaBonita} a las ${horaBonita}`;
   
   const datos = {
     tipo: 'recordatorio_4h',

@@ -8,6 +8,8 @@ const cors           = require("cors");
 const cookieParser   = require("cookie-parser");
 const pool           = require("./bd");
 const refreshSession = require("./config/refreshSession");
+// === CRON AUTOMÁTICO ===
+
 
 
 
