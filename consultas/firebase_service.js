@@ -66,7 +66,7 @@ async function enviarNotificacionUsuario(usuarioId, titulo, mensaje, datos = {})
           channelId: 'canal_sututeh',
           sound: 'default',
           color: '#4CAF50',
-          icon: '@mipmap/ic_launcher',
+          icon: 'ic_stat_sututeh'
         },
       },
       token: token,

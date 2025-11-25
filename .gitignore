@@ -1,4 +1,3 @@
 ﻿node_modules/
 .env
 *.log
-config/sututeh-firebase-api.json
